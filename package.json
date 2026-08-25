@@ -1,0 +1,26 @@
+{
+  "name": "gungnir",
+  "version": "1.0.0",
+  "description": "Project: Gungnir - Roblox Lua obfuscation framework",
+  "main": "dist/cli.js",
+  "bin": {
+    "gungnir": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/cli.js"
+  },
+  "dependencies": {
+    "commander": "^15.0.0",
+    "luaparse": "^0.3.1"
+  },
+  "devDependencies": {
+    "@types/luaparse": "^0.2.13",
+    "@types/node": "^26.3.0",
+    "typescript": "^7.0.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
