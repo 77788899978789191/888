@@ -101,6 +101,21 @@
   @media (max-width: 1100px) {
     .main-grid { grid-template-columns: 1fr; }
   }
+  @media (max-width: 640px) {
+    .container { padding: 10px; }
+    header { padding: 14px 16px; }
+    .logo { font-size: 26px; letter-spacing: 3px; }
+    .logo-sub { font-size: 9px; }
+    .status-bar { width: 100%; justify-content: flex-start; }
+    .status-item { font-size: 9px; padding: 3px 8px; }
+    .panel { min-height: 320px; }
+    .panel-header { flex-wrap: wrap; gap: 6px; }
+    .btn-upload { font-size: 12px; padding: 10px 16px; }
+    .btn-primary { font-size: 14px; padding: 14px; }
+    .btn-secondary { font-size: 12px; padding: 12px; }
+    .code-area, .output-area { font-size: 11px; }
+    .upload-hint { font-size: 8px; }
+  }
   .panel {
     border: 1px solid var(--border);
     background: var(--bg-panel);
@@ -226,6 +241,22 @@
   .btn:disabled { opacity: 0.3; cursor: not-allowed; }
   .btn-primary { font-size: 15px; padding: 18px; font-weight: 700; }
   .btn-secondary { font-size: 11px; padding: 10px 14px; }
+  .btn-upload {
+    font-size: 11px; padding: 8px 14px;
+    background: linear-gradient(135deg, rgba(0,255,65,0.18), rgba(0,179,45,0.08));
+    border-color: var(--green-dim);
+    color: var(--green);
+    font-weight: 700;
+    box-shadow: 0 0 12px rgba(0,255,65,0.12), inset 0 0 8px rgba(0,255,65,0.06);
+    letter-spacing: 1px;
+  }
+  .btn-upload:active { transform: scale(0.96); }
+  .upload-hint {
+    position: absolute; bottom: 8px; left: 0; right: 0;
+    text-align: center; pointer-events: none;
+    font-size: 9px; color: var(--text-dim); opacity: .7;
+    letter-spacing: .5px; padding: 0 12px;
+  }
   .btn-row { display: flex; gap: 8px; }
   .btn-row .btn { flex: 1; }
   /* ===== Stats ===== */
@@ -319,17 +350,23 @@
     <div class="panel">
       <div class="panel-header">
         <span class="panel-title">源码输入</span>
-        <span style="font-size:10px;color:var(--text-dim)" id="inputMeta">0 字节</span>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:10px;color:var(--text-dim)" id="inputMeta">0 字节</span>
+          <button class="btn btn-upload" id="uploadBtn" title="从设备文件管理器选择 .lua 文件">📁 上传文件</button>
+        </div>
       </div>
+      <input type="file" id="fileInput" hidden
+        accept=".lua,.luau,.txt,text/plain,application/octet-stream">
       <div class="panel-body">
         <div class="drop-zone" id="dropZone">
           <textarea class="code-area" id="inputCode" spellcheck="false"
-            placeholder="-- 在此粘贴 Lua 源码，或拖拽 .lua 文件到此处
+            placeholder="-- 在此粘贴 Lua 源码，或点击「上传文件」从手机文件管理器选择
 -- ─────────────────────────────────────
 -- local function greet(name)
 --     print(&quot;你好, &quot; .. name)
 -- end
 -- greet(&quot;世界&quot;)"></textarea>
+          <div class="upload-hint">📱 支持 iOS「文件」App / 安卓系统文件管理器 · 也可以拖拽文件到此处</div>
         </div>
       </div>
     </div>
@@ -3843,6 +3880,38 @@ dropZone.addEventListener('drop', e => {
     logLine('已载入 ' + file.name + '（' + inputArea.value.length + ' 字节）', 'ok');
   };
   reader.readAsText(file);
+});
+
+// ---------- File upload (iOS Files app / Android file manager) ----------
+const uploadBtn = document.getElementById('uploadBtn');
+const fileInput = document.getElementById('fileInput');
+
+uploadBtn.addEventListener('click', () => {
+  fileInput.value = '';        // allow re-selecting the same file
+  fileInput.click();           // opens the system file picker on mobile
+});
+
+fileInput.addEventListener('change', () => {
+  const file = fileInput.files && fileInput.files[0];
+  if (!file) return;
+  if (!/\.(lua|luau|txt)$/i.test(file.name)) {
+    logLine('已拒绝：' + file.name + '（仅支持 .lua / .luau / .txt）', 'err');
+    return;
+  }
+  const reader = new FileReader();
+  reader.onerror = () => logLine('读取文件失败：' + file.name, 'err');
+  reader.onload = () => {
+    const text = String(reader.result || '');
+    if (!text.trim()) {
+      logLine('文件为空：' + file.name, 'err');
+      return;
+    }
+    inputArea.value = text;
+    inputMeta.textContent = text.length + ' 字节';
+    logLine('已上传 ' + file.name + '（' + text.length + ' 字节）', 'ok');
+    logLine('点击「⚔ 开始混淆」继续', 'dim');
+  };
+  reader.readAsText(file, 'utf-8');
 });
 
 // ---------- Main obfuscation pipeline ----------

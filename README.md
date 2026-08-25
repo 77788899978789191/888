@@ -42,7 +42,7 @@ node dist/cli.js \
 
 ```bash
 # 直接用浏览器打开（完全离线，luaparse 已内联）
-web/index.html
+docs/index.html
 ```
 
 Web 引擎是 CLI 的浏览器子集（4 个模块：标识符重命名 / 字符串加密 / 常量混淆 / 表达式分解），输出前自动做 Lua 5.1 自检重解析。
@@ -106,5 +106,5 @@ gungnir/
 │   ├── vm/BytecodeGen.ts      # VM 字节码生成（82 操作码重映射）
 │   └── utils/helpers.ts       # RNG / AST 工具
 ├── test/                      # 测试 + fixture
-└── web/index.html             # 深色 Web 界面（离线可用）
+└── docs/index.html             # 深色 Web 界面（离线可用）
 ```
