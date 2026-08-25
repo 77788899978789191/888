@@ -239,10 +239,12 @@ export class ConstantObfuscationPlugin implements ObfuscationPlugin {
     if (!Number.isInteger(value)) return null;
 
     if (Math.abs(value) < 2 ** 25) {
-      const n = createNumericLiteral(value);
-      const nSq = createBinaryExpression('^', n, createNumericLiteral(2));
-      const nSqPlusN = createBinaryExpression('+', nSq, n);
-      return createBinaryExpression('-', nSqPlusN, nSq);
+      // Fresh node objects per usage — shared AST references get visited
+      // multiple times by later in-place rewrite passes, causing
+      // double-processing corruption.
+      const nSq = () => createBinaryExpression('^', createNumericLiteral(value), createNumericLiteral(2));
+      const nSqPlusN = createBinaryExpression('+', nSq(), createNumericLiteral(value));
+      return createBinaryExpression('-', nSqPlusN, nSq());
     }
 
     if (Math.abs(value) < 2 ** 51) {

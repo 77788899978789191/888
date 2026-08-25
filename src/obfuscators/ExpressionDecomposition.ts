@@ -72,12 +72,18 @@ export class ExpressionDecompositionPlugin implements ObfuscationPlugin {
     for (const target of targets) {
       const n = target as unknown as {
         operator: string;
-        left: { value: number };
-        right: { value: number };
+        left: { type?: string; value?: number };
+        right: { type?: string; value?: number };
       };
 
+      // Re-validate: an aliased node may already have been rewritten by an
+      // earlier iteration — guard against `undefined` leaking into output.
+      if (!n.left || n.left.type !== 'NumericLiteral') continue;
+      if (!n.right || n.right.type !== 'NumericLiteral') continue;
+      if (!Number.isFinite(n.left.value) || !Number.isFinite(n.right.value)) continue;
+
       const replacement = this.buildExpression(
-        ctx, n.left.value, n.operator, n.right.value, depth
+        ctx, n.left.value as number, n.operator, n.right.value as number, depth
       );
 
       // In-place field replacement: the fresh tree never references the

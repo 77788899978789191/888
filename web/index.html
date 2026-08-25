@@ -3619,11 +3619,12 @@ ConstantObfuscator.prototype.transform = function (v, intensity) {
     });
   }
   // 4. Polynomial identity (n²+n)−n² — exact for small integers
+  //    NOTE: fresh node objects per usage — shared AST references cause
+  //    double-processing bugs in later in-place rewrite passes.
   if (Number.isInteger(v) && Math.abs(v) < 2 ** 25) {
     variants.push(() => {
-      const n = this.num(v);
-      const sq = this.bin('^', n, this.num(2));
-      return this.bin('-', this.bin('+', sq, n), sq);
+      const sq = () => this.bin('^', this.num(v), this.num(2));
+      return this.bin('-', this.bin('+', sq(), this.num(v)), sq());
     });
   }
 
@@ -3673,7 +3674,14 @@ ExpressionDecomposer.prototype.run = function (ast, intensity) {
 
   for (const t of targets) {
     if (this.rng.next() > rate) continue;
-    const lv = t.node.left.value, rv = t.node.right.value;
+    // Re-validate: a shared/aliased node may already have been rewritten
+    // by an earlier iteration — guard against JS `undefined` leaking
+    // into emitted Lua as a bogus identifier.
+    const l = t.node.left, r = t.node.right;
+    if (!l || l.type !== 'NumericLiteral') continue;
+    if (!r || r.type !== 'NumericLiteral') continue;
+    const lv = l.value, rv = r.value;
+    if (!Number.isFinite(lv) || !Number.isFinite(rv)) continue;
     const left = this.wrap(this.num(lv), lv, depth);
     const right = this.wrap(this.num(rv), rv, depth);
     const core = this.bin(t.op, left, right);
