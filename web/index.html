@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>GUNGNIR // Lua Obfuscator v2.1</title>
+<title>冈格尼尔 · GUNGNIR — Lua 混淆器 v2.1</title>
 <style>
   :root {
     --bg: #050807;
@@ -302,15 +302,15 @@
   <header>
     <div class="logo-block">
       <div>
-        <div class="logo">GUNGNIR</div>
-        <div class="logo-sub">// project gungnir — lua obfuscation framework</div>
+        <div class="logo">冈格尼尔 <span style="font-size:.6em;letter-spacing:.2em">GUNGNIR</span></div>
+        <div class="logo-sub">// 个人专用防御框架 — Lua 5.1 极致混淆引擎</div>
       </div>
     </div>
     <div class="status-bar">
-      <span class="status-item">ENGINE <b>WEB-DEMO v2.1</b></span>
-      <span class="status-item">TARGET <b>LUA 5.1</b></span>
-      <span class="status-item">MODULES <b id="moduleCount">3</b></span>
-      <span class="ver-badge">STABLE</span>
+      <span class="status-item">引擎 <b>网页版 v2.1</b></span>
+      <span class="status-item">目标 <b>LUA 5.1</b></span>
+      <span class="status-item">模块 <b id="moduleCount">4</b></span>
+      <span class="ver-badge">稳定</span>
     </div>
   </header>
 
@@ -318,18 +318,18 @@
     <!-- Input -->
     <div class="panel">
       <div class="panel-header">
-        <span class="panel-title">Source Input</span>
-        <span style="font-size:10px;color:var(--text-dim)" id="inputMeta">0 bytes</span>
+        <span class="panel-title">源码输入</span>
+        <span style="font-size:10px;color:var(--text-dim)" id="inputMeta">0 字节</span>
       </div>
       <div class="panel-body">
         <div class="drop-zone" id="dropZone">
           <textarea class="code-area" id="inputCode" spellcheck="false"
-            placeholder="-- Paste Lua source here, or drag & drop a .lua file
+            placeholder="-- 在此粘贴 Lua 源码，或拖拽 .lua 文件到此处
 -- ─────────────────────────────────────
 -- local function greet(name)
---     print(&quot;Hello, &quot; .. name)
+--     print(&quot;你好, &quot; .. name)
 -- end
--- greet(&quot;World&quot;)"></textarea>
+-- greet(&quot;世界&quot;)"></textarea>
         </div>
       </div>
     </div>
@@ -337,11 +337,11 @@
     <!-- Controls -->
     <div class="panel">
       <div class="panel-header">
-        <span class="panel-title">Obfuscation Config</span>
+        <span class="panel-title">混淆配置</span>
       </div>
       <div class="controls">
         <div class="ctrl-group">
-          <div class="ctrl-label"><span>Intensity</span><b id="intensityVal">7</b></div>
+          <div class="ctrl-label"><span>混淆强度</span><b id="intensityVal">7</b></div>
           <input type="range" id="intensitySlider" min="1" max="10" value="7">
           <div class="intensity-marks">
             <span>1</span><span>3</span><span>5</span><span>7</span><span>9</span><span>10</span>
@@ -349,38 +349,38 @@
         </div>
 
         <div class="ctrl-group">
-          <div class="ctrl-label"><span>Seed</span></div>
+          <div class="ctrl-label"><span>随机种子</span></div>
           <div class="seed-row">
             <input type="text" id="seedInput" value="1337">
-            <button id="seedRandom" title="Random seed">RND</button>
+            <button id="seedRandom" title="随机种子">随机</button>
           </div>
         </div>
 
         <div class="ctrl-group">
-          <div class="ctrl-label"><span>Modules</span></div>
+          <div class="ctrl-label"><span>混淆模块</span></div>
           <div class="module-toggle active" data-module="rename">
-            <div><div class="mod-name">Identifier Renaming</div><div class="mod-desc">local symbols → V0x… form</div></div>
+            <div><div class="mod-name">标识符重命名</div><div class="mod-desc">局部符号 → V0x… 混沌命名</div></div>
             <div class="toggle-indicator"></div>
           </div>
           <div class="module-toggle active" data-module="strings">
-            <div><div class="mod-name">String Encryption</div><div class="mod-desc">XOR pool + lazy decrypt stub (Lua 5.1)</div></div>
+            <div><div class="mod-name">字符串加密</div><div class="mod-desc">XOR 加密池 + 惰性解密桩（Lua 5.1）</div></div>
             <div class="toggle-indicator"></div>
           </div>
           <div class="module-toggle active" data-module="constants">
-            <div><div class="mod-name">Constant Obfuscation</div><div class="mod-desc">integers → equivalent expressions</div></div>
+            <div><div class="mod-name">常量混淆</div><div class="mod-desc">整数 → 等价数学表达式</div></div>
             <div class="toggle-indicator"></div>
           </div>
           <div class="module-toggle active" data-module="expressions">
-            <div><div class="mod-name">Expression Decomposition</div><div class="mod-desc">literal arithmetic → deep trees</div></div>
+            <div><div class="mod-name">表达式分解</div><div class="mod-desc">字面算术 → 深层嵌套树</div></div>
             <div class="toggle-indicator"></div>
           </div>
         </div>
 
-        <button class="btn btn-primary" id="obfuscateBtn">⚔ OBFUSCATE</button>
+        <button class="btn btn-primary" id="obfuscateBtn">⚔ 开始混淆</button>
 
         <div class="btn-row">
-          <button class="btn btn-secondary" id="loadSample">Sample</button>
-          <button class="btn btn-secondary" id="clearBtn">Clear</button>
+          <button class="btn btn-secondary" id="loadSample">载入示例</button>
+          <button class="btn btn-secondary" id="clearBtn">清空</button>
         </div>
       </div>
     </div>
@@ -388,13 +388,13 @@
     <!-- Output -->
     <div class="panel">
       <div class="panel-header">
-        <span class="panel-title">Obfuscated Output</span>
-        <button class="btn btn-secondary" id="downloadBtn" style="padding:6px 14px;font-size:10px" disabled>⬇ DOWNLOAD</button>
+        <span class="panel-title">混淆输出</span>
+        <button class="btn btn-secondary" id="downloadBtn" style="padding:6px 14px;font-size:10px" disabled>⬇ 下载</button>
       </div>
       <div class="panel-body">
         <div class="output-area" id="outputArea">
-<span style="color:#2a4a36">-- output pending…
--- configure modules on the left, then hit OBFUSCATE</span>
+<span style="color:#2a4a36">-- 等待输出…
+-- 在左侧配置模块后，点击「开始混淆」</span>
         </div>
       </div>
     </div>
@@ -403,24 +403,24 @@
   <!-- Stats -->
   <div class="stats-panel">
     <div class="stats-grid">
-      <div class="stat-item"><div class="stat-value" id="statSize">—</div><div class="stat-label">Output Size</div></div>
-      <div class="stat-item"><div class="stat-value" id="statRatio">—</div><div class="stat-label">Bloat Ratio</div></div>
-      <div class="stat-item"><div class="stat-value" id="statStrings">0</div><div class="stat-label">Strings Encrypted</div></div>
-      <div class="stat-item"><div class="stat-value" id="statConsts">0</div><div class="stat-label">Constants Obfuscated</div></div>
-      <div class="stat-item"><div class="stat-value" id="statRenames">0</div><div class="stat-label">Identifiers Renamed</div></div>
-      <div class="stat-item"><div class="stat-value" id="statExprs">0</div><div class="stat-label">Exprs Decomposed</div></div>
+      <div class="stat-item"><div class="stat-value" id="statSize">—</div><div class="stat-label">输出体积</div></div>
+      <div class="stat-item"><div class="stat-value" id="statRatio">—</div><div class="stat-label">膨胀倍率</div></div>
+      <div class="stat-item"><div class="stat-value" id="statStrings">0</div><div class="stat-label">加密字符串</div></div>
+      <div class="stat-item"><div class="stat-value" id="statConsts">0</div><div class="stat-label">混淆常量</div></div>
+      <div class="stat-item"><div class="stat-value" id="statRenames">0</div><div class="stat-label">重命名标识符</div></div>
+      <div class="stat-item"><div class="stat-value" id="statExprs">0</div><div class="stat-label">分解表达式</div></div>
     </div>
   </div>
 
   <!-- Terminal -->
   <div class="terminal" id="terminalLog">
-    <div class="line ok">gungnir web engine v2.1 initialized</div>
-    <div class="line">lua 5.1 target — pure-arithmetic bxor stub (no bitwise ops)</div>
-    <div class="line">awaiting input…</div>
+    <div class="line ok">冈格尼尔网页引擎 v2.1 初始化完成</div>
+    <div class="line">目标 Lua 5.1 — 纯算术 bxor 桩（无位运算符）</div>
+    <div class="line">等待输入…</div>
   </div>
 
   <footer>
-    PROJECT GUNGNIR // PERSONAL DEFENSIVE OBFUSCATION FRAMEWORK // CLI (12 MODULES) &gt; WEB DEMO (4 MODULES)
+    冈格尼尔计划 // 个人专用防御性混淆框架 // 命令行版（12 模块）&gt; 网页版（4 模块）
   </footer>
 </div>
 
@@ -3760,20 +3760,20 @@ intensitySlider.addEventListener('input', () => {
 });
 document.getElementById('seedRandom').addEventListener('click', () => {
   seedInput.value = String(Math.floor(Math.random() * 2 ** 31));
-  logLine('seed randomized → ' + seedInput.value, 'ok');
+  logLine('种子已随机化 → ' + seedInput.value, 'ok');
 });
 inputArea.addEventListener('input', () => {
-  inputMeta.textContent = inputArea.value.length + ' bytes';
+  inputMeta.textContent = inputArea.value.length + ' 字节';
 });
 document.getElementById('clearBtn').addEventListener('click', () => {
   inputArea.value = '';
-  outputArea.innerHTML = '<span style="color:#2a4a36">-- output pending…</span>';
-  inputMeta.textContent = '0 bytes';
+  outputArea.innerHTML = '<span style="color:#2a4a36">-- 等待输出…</span>';
+  inputMeta.textContent = '0 字节';
   downloadBtn.disabled = true;
 });
 document.getElementById('loadSample').addEventListener('click', () => {
   inputArea.value = [
-    '-- Gungnir web demo sample',
+    '-- 冈格尼尔网页版示例脚本',
     'local Players = game:GetService("Players")',
     '',
     'local function calculateScore(base, multiplier)',
@@ -3797,8 +3797,8 @@ document.getElementById('loadSample').addEventListener('click', () => {
     'print("Score:", calculateScore(20, 5))',
     'print("Total:", total)',
   ].join('\n');
-  inputMeta.textContent = inputArea.value.length + ' bytes';
-  logLine('sample loaded (' + inputArea.value.length + ' bytes)', 'ok');
+  inputMeta.textContent = inputArea.value.length + ' 字节';
+  logLine('示例已载入（' + inputArea.value.length + ' 字节）', 'ok');
 });
 
 // Module toggles
@@ -3825,14 +3825,14 @@ dropZone.addEventListener('drop', e => {
   const file = e.dataTransfer.files[0];
   if (!file) return;
   if (!/\.lua$/i.test(file.name) && !/\.txt$/i.test(file.name)) {
-    logLine('rejected: ' + file.name + ' (not .lua/.txt)', 'err');
+    logLine('已拒绝：' + file.name + '（仅支持 .lua/.txt）', 'err');
     return;
   }
   const reader = new FileReader();
   reader.onload = () => {
     inputArea.value = String(reader.result);
-    inputMeta.textContent = inputArea.value.length + ' bytes';
-    logLine('loaded ' + file.name + ' (' + inputArea.value.length + ' bytes)', 'ok');
+    inputMeta.textContent = inputArea.value.length + ' 字节';
+    logLine('已载入 ' + file.name + '（' + inputArea.value.length + ' 字节）', 'ok');
   };
   reader.readAsText(file);
 });
@@ -3841,28 +3841,28 @@ dropZone.addEventListener('drop', e => {
 obfuscateBtn.addEventListener('click', () => {
   const source = inputArea.value.trim();
   if (!source) {
-    logLine('error: no input source', 'err');
-    outputArea.innerHTML = '<span class="err">-- ERROR: no input source</span>';
+    logLine('错误：没有输入源码', 'err');
+    outputArea.innerHTML = '<span class="err">-- 错误：没有输入源码</span>';
     return;
   }
   if (typeof luaparse === 'undefined') {
-    logLine('error: luaparse CDN failed to load (offline?)', 'err');
-    outputArea.innerHTML = '<span class="err">-- ERROR: parser library unavailable — check network</span>';
+    logLine('错误：解析器库加载失败（离线？）', 'err');
+    outputArea.innerHTML = '<span class="err">-- 错误：解析器库不可用 — 请检查网络</span>';
     return;
   }
 
   busyBar.classList.add('active');
   obfuscateBtn.disabled = true;
-  outputArea.textContent = 'processing…';
+  outputArea.textContent = '处理中…';
 
   // Defer so the busy bar paints
   setTimeout(() => {
     try {
       pipeline(source);
     } catch (err) {
-      outputArea.innerHTML = '<span class="err">-- FATAL: ' +
+      outputArea.innerHTML = '<span class="err">-- 致命错误：' +
         String(err.message || err).replace(/</g, '&lt;') + '</span>';
-      logLine('fatal: ' + (err.message || err), 'err');
+      logLine('致命错误：' + (err.message || err), 'err');
     } finally {
       busyBar.classList.remove('active');
       obfuscateBtn.disabled = false;
@@ -3876,19 +3876,19 @@ function pipeline(source) {
   const seed = parseInt(seedInput.value, 10) || Date.now();
   const rng = new GungnirRng(seed);
 
-  logLine('pipeline start — intensity ' + intensity + ', seed ' + seed, 'ok');
+  logLine('流水线启动 — 强度 ' + intensity + '，种子 ' + seed, 'ok');
 
   // Parse (Lua 5.1 — the strict gate)
   let ast;
   try {
     ast = luaparse.parse(source, { luaVersion: '5.1', comments: false });
   } catch (e) {
-    outputArea.innerHTML = '<span class="err">-- PARSE ERROR (Lua 5.1):\n-- ' +
+    outputArea.innerHTML = '<span class="err">-- 解析错误（Lua 5.1）：\n-- ' +
       String(e.message).replace(/</g, '&lt;') + '</span>';
-    logLine('parse error: ' + e.message, 'err');
+    logLine('解析错误：' + e.message, 'err');
     return;
   }
-  logLine('parsed OK (Lua 5.1)');
+  logLine('解析成功（Lua 5.1）');
 
   const prelude = [];
 
@@ -3898,7 +3898,7 @@ function pipeline(source) {
     const map = renamer.run(ast);
     // Parent-aware rewrite pass (correct key/field exclusion)
     const count = renameWithParentsCounted(ast, map);
-    logLine('identifier renaming: ' + count + ' references (' + map.size + ' symbols)');
+    logLine('标识符重命名：' + count + ' 处引用（' + map.size + ' 个符号）');
     document.getElementById('statRenames').textContent = count;
   } else {
     document.getElementById('statRenames').textContent = '0';
@@ -3910,9 +3910,9 @@ function pipeline(source) {
     const stub = enc.run(ast, intensity);
     if (stub) {
       prelude.push(stub);
-      logLine('string encryption: ' + enc.encrypted + ' strings → XOR pool (Lua 5.1 stub)');
+      logLine('字符串加密：' + enc.encrypted + ' 个字符串 → XOR 加密池（Lua 5.1 桩）');
     } else {
-      logLine('string encryption: no eligible strings');
+      logLine('字符串加密：没有符合条件的字符串');
     }
     document.getElementById('statStrings').textContent = enc.encrypted;
   } else {
@@ -3923,7 +3923,7 @@ function pipeline(source) {
   if (moduleState.constants) {
     const co = new ConstantObfuscator(rng);
     co.run(ast, intensity);
-    logLine('constant obfuscation: ' + co.count + ' literals → equivalent expressions');
+    logLine('常量混淆：' + co.count + ' 个字面量 → 等价数学表达式');
     document.getElementById('statConsts').textContent = co.count;
   } else {
     document.getElementById('statConsts').textContent = '0';
@@ -3933,8 +3933,8 @@ function pipeline(source) {
   if (moduleState.expressions) {
     const ed = new ExpressionDecomposer(rng);
     ed.run(ast, intensity);
-    logLine('expression decomposition: ' + ed.count + ' expressions → depth-' +
-      Math.min(2 + Math.floor(intensity * 0.8), 10) + ' trees');
+    logLine('表达式分解：' + ed.count + ' 个表达式 → 深度 ' +
+      Math.min(2 + Math.floor(intensity * 0.8), 10) + ' 层嵌套树');
     document.getElementById('statExprs').textContent = ed.count;
   } else {
     document.getElementById('statExprs').textContent = '0';
@@ -3949,11 +3949,11 @@ function pipeline(source) {
   // Self-verification: reparse the OUTPUT under Lua 5.1 (same strict gate as CLI)
   try {
     luaparse.parse(output, { luaVersion: '5.1', comments: false });
-    logLine('self-check: output re-parsed OK under Lua 5.1', 'ok');
+    logLine('自检：输出已通过 Lua 5.1 重新解析', 'ok');
   } catch (e) {
-    outputArea.innerHTML = '<span class="err">-- INTERNAL ERROR: emitted code failed self-check\n-- ' +
+    outputArea.innerHTML = '<span class="err">-- 内部错误：生成的代码未通过自检\n-- ' +
       String(e.message).replace(/</g, '&lt;') + '</span>';
-    logLine('self-check FAILED: ' + e.message, 'err');
+    logLine('自检失败：' + e.message, 'err');
     return;
   }
 
@@ -3964,8 +3964,8 @@ function pipeline(source) {
   window.__gungnirOutput = output;
 
   document.getElementById('statSize').textContent = formatBytes(output.length);
-  document.getElementById('statRatio').textContent = ratio + 'x';
-  logLine('done in ' + elapsed + 'ms — ' + source.length + ' → ' + output.length + ' bytes (' + ratio + 'x)', 'ok');
+  document.getElementById('statRatio').textContent = ratio + ' 倍';
+  logLine('完成，耗时 ' + elapsed + ' 毫秒 — ' + source.length + ' → ' + output.length + ' 字节（' + ratio + ' 倍）', 'ok');
 }
 
 // Parent-aware rename with reference counting
@@ -4004,7 +4004,7 @@ downloadBtn.addEventListener('click', () => {
   a.download = 'gungnir_obfuscated.lua';
   a.click();
   URL.revokeObjectURL(a.href);
-  logLine('downloaded gungnir_obfuscated.lua', 'ok');
+  logLine('已下载 gungnir_obfuscated.lua', 'ok');
 });
 
 function formatBytes(n) {
