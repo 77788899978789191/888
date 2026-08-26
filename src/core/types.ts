@@ -180,6 +180,12 @@ export interface ObfuscationContext {
   stringPool: EncryptedStringEntry[];
   /** Statistics tracking */
   stats: ObfuscationStats;
+  /**
+   * 【子系统 93：宏粒度控制】函数级强度 pragma（1-5）
+   * 键 = 函数名，值 = 强度（覆盖全局 intensity）
+   * 解析自源码注解 `-- @pragma: intensity=N on=函数名`
+   */
+  pragmaIntensities: Map<string, number>;
 }
 
 export interface RngState {
@@ -267,6 +273,13 @@ export interface GungnirConfig {
   antiDebugMode: 'corrupt' | 'silent';
   /** Rotate VM opcodes per build (dynamic opcode remapping) */
   vmOpcodeRemap: boolean;
+  /**
+   * 【子系统 15/95】自动验证：fengari 等价性 + 相似度 + 冲突检测，
+   * 失败自动换种子重试
+   */
+  verify: boolean;
+  /** 【子系统 15】验证失败最大重试次数（0 = 不重试） */
+  maxVerifyRetries: number;
 }
 
 export interface LayerConfig {
@@ -307,4 +320,6 @@ export const DEFAULT_CONFIG: GungnirConfig = {
   target: 'roblox',
   antiDebugMode: 'silent',
   vmOpcodeRemap: true,
+  verify: true,
+  maxVerifyRetries: 3,
 };

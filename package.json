@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "commander": "^15.0.0",
+    "fengari": "^0.1.5",
     "luaparse": "^0.3.1"
   },
   "devDependencies": {

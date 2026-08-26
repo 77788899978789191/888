@@ -150,6 +150,89 @@ function isLuaNode(value: unknown): value is LuaNode {
   );
 }
 
+// ============ 语句列表遍历（容器感知）============
+
+/**
+ * 遍历 AST 中所有「语句列表」容器（Chunk.body / DoStatement.body /
+ * 函数体 body / 循环体 body / IfStatement.clauses[i].body / else_ 等）。
+ * 回调可直接原位修改数组（替换/插入/删除语句）。
+ *
+ * 这是一切「按语句块变换」的插件的基础设施。
+ */
+export function forEachStatementList(
+  node: LuaNode,
+  visit: (stmts: LuaNode[], owner: Record<string, unknown>) => void,
+): void {
+  const n = node as unknown as Record<string, unknown>;
+  const t = String(n.type ?? '');
+
+  // 当前节点自身持有的语句列表
+  if (t === 'Chunk' || t === 'DoStatement') {
+    if (Array.isArray(n.body)) visit(n.body as LuaNode[], n);
+  } else if (t === 'WhileStatement' || t === 'ForNumericStatement'
+    || t === 'ForGenericStatement' || t === 'RepeatStatement') {
+    if (Array.isArray(n.body)) visit(n.body as LuaNode[], n);
+  } else if (t === 'FunctionDeclaration' || t === 'FunctionExpression') {
+    if (Array.isArray(n.body)) visit(n.body as LuaNode[], n);
+  } else if (t === 'IfStatement') {
+    const clauses = n.clauses as { body: LuaNode[] }[] | undefined;
+    if (Array.isArray(clauses)) {
+      for (const clause of clauses) {
+        if (Array.isArray(clause?.body)) visit(clause.body, clause as unknown as Record<string, unknown>);
+      }
+    }
+    if (Array.isArray(n.else_)) visit(n.else_ as LuaNode[], n);
+  }
+
+  // 递归子节点
+  for (const child of getChildren(node)) {
+    forEachStatementList(child, visit);
+  }
+}
+
+/** 创建原样输出 Lua 代码的原始语句节点（LuaPrinter 直通打印） */
+export function createRawStatement(code: string): LuaNode {
+  return { type: 'GungnirRawStatement', code } as unknown as LuaNode;
+}
+
+/** 收集语句内出现的所有标识符名（读写都算，用于依赖分析） */
+export function collectIdentifierNames(node: LuaNode, into?: Set<string>): Set<string> {
+  const set = into ?? new Set<string>();
+  walk(node, (n) => {
+    const nn = n as unknown as Record<string, unknown>;
+    if (nn.type === 'Identifier' && typeof nn.name === 'string') {
+      set.add(String(nn.name));
+    }
+  });
+  return set;
+}
+
+/** 语句写入（声明/赋值）的变量名集合 */
+export function collectWrittenNames(stmt: LuaNode): Set<string> {
+  const out = new Set<string>();
+  const n = stmt as unknown as Record<string, unknown>;
+  if (n.type === 'LocalStatement' && Array.isArray(n.variables)) {
+    for (const v of n.variables as { name?: unknown }[]) {
+      if (typeof v?.name === 'string') out.add(v.name);
+    }
+  } else if (n.type === 'AssignmentStatement' && Array.isArray(n.variables)) {
+    for (const v of n.variables as Record<string, unknown>[]) {
+      if (v?.type === 'Identifier' && typeof v.name === 'string') out.add(String(v.name));
+    }
+    // 对 table.field / t[i] 的写入视为读 t（保守）
+  } else if (n.type === 'FunctionDeclaration') {
+    const id = n.identifier as { name?: unknown } | null;
+    if (id && typeof id.name === 'string') out.add(id.name);
+  } else if (n.type === 'CallStatement') {
+    const base = (n.expression as Record<string, unknown> | undefined)?.base as Record<string, unknown> | undefined;
+    // g = f() 形式不在这里；纯调用不写变量
+    if (base?.type === 'MemberExpression') {
+      // t.f() 视为读 t
+    }
+  }
+  return out;
+}
+
 // ============ String Utilities ============
 
 export function stringToBytes(str: string): number[] {
