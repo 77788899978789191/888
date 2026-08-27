@@ -5,28 +5,44 @@
  * Each basic block becomes a case in a while(true) + switch pattern.
  *
  * Layer 2: Control Flow Purgatory
+ *
+ * 【作用域安全：局部变量提升 + α 改名】
+ *  - 分发循环把每个基本块放进独立的 if/elseif 分支，各分支是独立
+ *    作用域。若不处理，`local x`（分支 A）与后续引用（分支 B）会被
+ *    拆散——B 中的 x 静默退化成全局 nil（间歇性运行时崩溃根源）。
+ *  - 解法：块内所有顶层局部声明提升为循环前的一次 `local`（全新
+ *    不冲突名），原声明处改为赋值（`local a,b = f()` → `fa,fb = f()`
+ *    完整保留多值调整语义），声明点之后的引用统一 α 改名到新名。
+ *    引用先于声明点的保持原名（继续绑定外层作用域，与 Lua 语义一致）。
+ *  - 同名遮蔽（重声明 / 嵌套函数 / 循环变量 / 参数）经统一改名后
+ *    遮蔽结构同构保持，语义严格等价。
+ *  - 顶层 break 在分发循环中会绑错循环 → 此类块直接放弃扁平化。
  */
 import {
   ObfuscationPlugin, ObfuscationContext, Chunk, LuaNode,
 } from '../core/types';
-import { walk, createIdentifier, createNumericLiteral } from '../utils/helpers';
+import {
+  walk, createIdentifier, createNumericLiteral, collectIdentifierNames,
+} from '../utils/helpers';
+import {
+  hoistTopLevelLocals, topLevelLocalsSafeToHoist,
+} from '../utils/ScopeHoist';
 
 interface FlattenedBlock {
   id: number;
   body: LuaNode[];
   nextBlockId: number | null;
-  condition: LuaNode | null; // If non-null, this is a conditional branch
-  trueBlockId: number | null;
-  falseBlockId: number | null;
 }
 
 export class ControlFlowFlatteningPlugin implements ObfuscationPlugin {
   name = 'ControlFlowFlattening';
-  description = 'Flattens structured control flow into dispatch-loop state machines with scrambled case ordering';
+  description = 'Flattens structured control flow into dispatch-loop state machines with scrambled case ordering and scope-safe local hoisting';
   layers = [2];
 
   /** Counter for generating unique state IDs */
   private stateCounter = 0;
+  /** 本插件已生成的 fresh 名（跨块去重，防同名碰撞） */
+  private usedFreshNames = new Set<string>();
 
   transform(ctx: ObfuscationContext): Chunk {
     const intensity = ctx.config.intensity;
@@ -62,7 +78,6 @@ export class ControlFlowFlatteningPlugin implements ObfuscationPlugin {
       if (n.type === 'IfStatement') {
         const ifNode = n as unknown as {
           clauses: { body: LuaNode[] }[];
-          else_: LuaNode[] | null;
         };
         for (const clause of ifNode.clauses) {
           if (clause.body.length >= minBlockSize && ctx.rng.next() < flattenRate) {
@@ -96,14 +111,17 @@ export class ControlFlowFlatteningPlugin implements ObfuscationPlugin {
    * Flatten a sequence of statements into a dispatch-loop state machine.
    *
    * Original:
-   *   stmt1; stmt2; stmt3
+   *   local a = 1; stmt1(a); local b = 2; stmt2(b)
    *
-   * Becomes:
-   *   local __state = START
-   *   while true do
-   *     if __state == 3 then stmt1; __state = 7
-   *     elseif __state == 7 then stmt2; __state = 1
-   *     elseif __state == 1 then stmt3; break
+   * Becomes (scope-safe):
+   *   do
+   *     local fa, fb                      -- hoisted locals
+   *     local __state = START
+   *     while true do
+   *       if __state == 3 then fa = 1; __state = 7
+   *       elseif __state == 7 then stmt1(fa); __state = 1
+   *       elseif __state == 1 then fb = 2; stmt2(fb); break
+   *       end
    *     end
    *   end
    */
@@ -115,11 +133,27 @@ export class ControlFlowFlatteningPlugin implements ObfuscationPlugin {
   ): void {
     if (body.length < 2) return;
 
-    // Phase 1: Split the body into basic blocks
+    // 顶层 break 会绑到分发循环而非原循环 → 放弃该块
+    for (const stmt of body) {
+      if (String((stmt as unknown as Record<string, unknown>).type) === 'BreakStatement') return;
+    }
+
+    // 纯计算切块数（不改动 AST）：少于 2 块则放弃（避免先改名后放弃的半成品状态）
+    if (this.countBlocks(body) < 2) return;
+
+    // raw 文本引用了将提升的顶层 local 名 → 无法触及改名 → 放弃该块
+    // （必须在任何 AST 变异之前判定）
+    if (!topLevelLocalsSafeToHoist(body)) return;
+
+    // —— 此刻起必然产出：执行提升 + 改名（安全，不再有回退路径）——
+    const hoisted = hoistTopLevelLocals(ctx, body, this.usedFreshNames, '_hf');
+    const { decl, newBody } = hoisted;
+
+    // Phase 1: Split the hoisted body into basic blocks
     const blocks: FlattenedBlock[] = [];
     let currentBlock: LuaNode[] = [];
 
-    for (const stmt of body) {
+    for (const stmt of newBody) {
       const n = stmt as unknown as Record<string, unknown>;
       currentBlock.push(stmt);
 
@@ -129,36 +163,23 @@ export class ControlFlowFlatteningPlugin implements ObfuscationPlugin {
           id: this.nextStateId(ctx),
           body: [...currentBlock],
           nextBlockId: null,
-          condition: null,
-          trueBlockId: null,
-          falseBlockId: null,
         });
         currentBlock = [];
       }
     }
 
-    // Don't forget the last block
     if (currentBlock.length > 0) {
       blocks.push({
         id: this.nextStateId(ctx),
         body: [...currentBlock],
         nextBlockId: null,
-        condition: null,
-        trueBlockId: null,
-        falseBlockId: null,
       });
     }
 
     if (blocks.length < 2) return;
 
     // Phase 2: Link blocks in sequence (but scramble the IDs)
-    // Assign random IDs to make the execution order non-obvious
     const scrambledBlocks = ctx.rng.shuffle(blocks);
-    const blockById = new Map<number, FlattenedBlock>();
-
-    for (let i = 0; i < scrambledBlocks.length; i++) {
-      blockById.set(scrambledBlocks[i].id, scrambledBlocks[i]);
-    }
 
     // Link: each block points to the next in original order
     for (let i = 0; i < blocks.length; i++) {
@@ -170,7 +191,27 @@ export class ControlFlowFlatteningPlugin implements ObfuscationPlugin {
     const dispatchLoop = this.generateDispatchLoop(ctx, blocks, scrambledBlocks);
 
     // Phase 4: Replace the original body with the dispatch loop
-    (parent as Record<string, unknown>)[bodyKey] = [dispatchLoop];
+    const doBody = decl ? [decl, dispatchLoop.stateDecl] : [dispatchLoop.stateDecl];
+    (parent as Record<string, unknown>)[bodyKey] = [{
+      type: 'DoStatement',
+      body: [...doBody, dispatchLoop.whileLoop],
+    }];
+  }
+
+  /** 纯计算：按切块规则统计块数（不修改 AST） */
+  private countBlocks(body: LuaNode[]): number {
+    let count = 0;
+    let open = false;
+    for (const stmt of body) {
+      const t = String((stmt as unknown as Record<string, unknown>).type);
+      open = true;
+      if (['IfStatement', 'WhileStatement', 'ForNumericStatement', 'ReturnStatement', 'BreakStatement'].includes(t)) {
+        count++;
+        open = false;
+      }
+    }
+    if (open) count++;
+    return count;
   }
 
   /**
@@ -180,7 +221,7 @@ export class ControlFlowFlatteningPlugin implements ObfuscationPlugin {
     ctx: ObfuscationContext,
     blocks: FlattenedBlock[],
     scrambledBlocks: FlattenedBlock[]
-  ): LuaNode {
+  ): { stateDecl: LuaNode; whileLoop: LuaNode } {
     const stateVar = this.generateStateVarName(ctx);
     const initialState = blocks[0].id;
 
@@ -231,19 +272,14 @@ export class ControlFlowFlatteningPlugin implements ObfuscationPlugin {
       } as never],
     } as never;
 
-    // Prepend: local stateVar = initialState
-    const localDecl: LuaNode = {
+    // local stateVar = initialState
+    const stateDecl: LuaNode = {
       type: 'LocalStatement',
-      variables: [createIdentifier(stateVar)],
-      init: [createNumericLiteral(initialState)],
+      variables: [createIdentifier(stateVar)] as never,
+      init: [createNumericLiteral(initialState)] as never,
     } as never;
 
-    // Return a "block" that includes both the local declaration and the while loop
-    // For simplicity, we wrap in a do...end block
-    return {
-      type: 'DoStatement',
-      body: [localDecl, whileLoop],
-    } as never;
+    return { stateDecl, whileLoop };
   }
 
   private nextStateId(ctx: ObfuscationContext): number {
@@ -253,11 +289,20 @@ export class ControlFlowFlatteningPlugin implements ObfuscationPlugin {
   }
 
   private generateStateVarName(ctx: ObfuscationContext): string {
+    // 状态变量名与全 chunk 标识符 + 本插件 fresh 名去重（防遮蔽用户变量）
+    const used = collectIdentifierNames(ctx.ast as unknown as LuaNode);
+    for (const u of this.usedFreshNames) used.add(u);
     const chars = 'abcdefghijklmnopqrstuvwxyz';
-    let name = '';
-    for (let i = 0; i < 6; i++) {
-      name += chars[ctx.rng.int(0, chars.length - 1)];
+    let name = '_' + chars[ctx.rng.int(0, 25)];
+    for (let i = 0; i < 5; i++) {
+      name += chars[ctx.rng.int(0, 25)];
     }
-    return '_' + name;
+    while (used.has(name)) {
+      name = '_' + chars[ctx.rng.int(0, 25)];
+      for (let i = 0; i < 5; i++) {
+        name += chars[ctx.rng.int(0, 25)];
+      }
+    }
+    return name;
   }
 }

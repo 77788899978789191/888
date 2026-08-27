@@ -2,12 +2,15 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ControlFlowFlatteningPlugin = void 0;
 const helpers_1 = require("../utils/helpers");
+const ScopeHoist_1 = require("../utils/ScopeHoist");
 class ControlFlowFlatteningPlugin {
     name = 'ControlFlowFlattening';
-    description = 'Flattens structured control flow into dispatch-loop state machines with scrambled case ordering';
+    description = 'Flattens structured control flow into dispatch-loop state machines with scrambled case ordering and scope-safe local hoisting';
     layers = [2];
     /** Counter for generating unique state IDs */
     stateCounter = 0;
+    /** 本插件已生成的 fresh 名（跨块去重，防同名碰撞） */
+    usedFreshNames = new Set();
     transform(ctx) {
         const intensity = ctx.config.intensity;
         // Only flatten blocks at sufficient complexity for the given intensity
@@ -62,24 +65,42 @@ class ControlFlowFlatteningPlugin {
      * Flatten a sequence of statements into a dispatch-loop state machine.
      *
      * Original:
-     *   stmt1; stmt2; stmt3
+     *   local a = 1; stmt1(a); local b = 2; stmt2(b)
      *
-     * Becomes:
-     *   local __state = START
-     *   while true do
-     *     if __state == 3 then stmt1; __state = 7
-     *     elseif __state == 7 then stmt2; __state = 1
-     *     elseif __state == 1 then stmt3; break
+     * Becomes (scope-safe):
+     *   do
+     *     local fa, fb                      -- hoisted locals
+     *     local __state = START
+     *     while true do
+     *       if __state == 3 then fa = 1; __state = 7
+     *       elseif __state == 7 then stmt1(fa); __state = 1
+     *       elseif __state == 1 then fb = 2; stmt2(fb); break
+     *       end
      *     end
      *   end
      */
     flattenBlock(ctx, body, parent, bodyKey) {
         if (body.length < 2)
             return;
-        // Phase 1: Split the body into basic blocks
+        // 顶层 break 会绑到分发循环而非原循环 → 放弃该块
+        for (const stmt of body) {
+            if (String(stmt.type) === 'BreakStatement')
+                return;
+        }
+        // 纯计算切块数（不改动 AST）：少于 2 块则放弃（避免先改名后放弃的半成品状态）
+        if (this.countBlocks(body) < 2)
+            return;
+        // raw 文本引用了将提升的顶层 local 名 → 无法触及改名 → 放弃该块
+        // （必须在任何 AST 变异之前判定）
+        if (!(0, ScopeHoist_1.topLevelLocalsSafeToHoist)(body))
+            return;
+        // —— 此刻起必然产出：执行提升 + 改名（安全，不再有回退路径）——
+        const hoisted = (0, ScopeHoist_1.hoistTopLevelLocals)(ctx, body, this.usedFreshNames, '_hf');
+        const { decl, newBody } = hoisted;
+        // Phase 1: Split the hoisted body into basic blocks
         const blocks = [];
         let currentBlock = [];
-        for (const stmt of body) {
+        for (const stmt of newBody) {
             const n = stmt;
             currentBlock.push(stmt);
             // Control flow statements end a basic block
@@ -88,33 +109,21 @@ class ControlFlowFlatteningPlugin {
                     id: this.nextStateId(ctx),
                     body: [...currentBlock],
                     nextBlockId: null,
-                    condition: null,
-                    trueBlockId: null,
-                    falseBlockId: null,
                 });
                 currentBlock = [];
             }
         }
-        // Don't forget the last block
         if (currentBlock.length > 0) {
             blocks.push({
                 id: this.nextStateId(ctx),
                 body: [...currentBlock],
                 nextBlockId: null,
-                condition: null,
-                trueBlockId: null,
-                falseBlockId: null,
             });
         }
         if (blocks.length < 2)
             return;
         // Phase 2: Link blocks in sequence (but scramble the IDs)
-        // Assign random IDs to make the execution order non-obvious
         const scrambledBlocks = ctx.rng.shuffle(blocks);
-        const blockById = new Map();
-        for (let i = 0; i < scrambledBlocks.length; i++) {
-            blockById.set(scrambledBlocks[i].id, scrambledBlocks[i]);
-        }
         // Link: each block points to the next in original order
         for (let i = 0; i < blocks.length; i++) {
             const next = i + 1 < blocks.length ? blocks[i + 1] : null;
@@ -123,7 +132,27 @@ class ControlFlowFlatteningPlugin {
         // Phase 3: Generate the dispatch loop AST
         const dispatchLoop = this.generateDispatchLoop(ctx, blocks, scrambledBlocks);
         // Phase 4: Replace the original body with the dispatch loop
-        parent[bodyKey] = [dispatchLoop];
+        const doBody = decl ? [decl, dispatchLoop.stateDecl] : [dispatchLoop.stateDecl];
+        parent[bodyKey] = [{
+                type: 'DoStatement',
+                body: [...doBody, dispatchLoop.whileLoop],
+            }];
+    }
+    /** 纯计算：按切块规则统计块数（不修改 AST） */
+    countBlocks(body) {
+        let count = 0;
+        let open = false;
+        for (const stmt of body) {
+            const t = String(stmt.type);
+            open = true;
+            if (['IfStatement', 'WhileStatement', 'ForNumericStatement', 'ReturnStatement', 'BreakStatement'].includes(t)) {
+                count++;
+                open = false;
+            }
+        }
+        if (open)
+            count++;
+        return count;
     }
     /**
      * Generate the while(true) dispatch loop AST.
@@ -173,18 +202,13 @@ class ControlFlowFlatteningPlugin {
                         }],
                 }],
         };
-        // Prepend: local stateVar = initialState
-        const localDecl = {
+        // local stateVar = initialState
+        const stateDecl = {
             type: 'LocalStatement',
             variables: [(0, helpers_1.createIdentifier)(stateVar)],
             init: [(0, helpers_1.createNumericLiteral)(initialState)],
         };
-        // Return a "block" that includes both the local declaration and the while loop
-        // For simplicity, we wrap in a do...end block
-        return {
-            type: 'DoStatement',
-            body: [localDecl, whileLoop],
-        };
+        return { stateDecl, whileLoop };
     }
     nextStateId(ctx) {
         // Generate random-looking state IDs to obscure execution order
@@ -192,12 +216,22 @@ class ControlFlowFlatteningPlugin {
         return ctx.rng.int(1000, 9999) + this.stateCounter;
     }
     generateStateVarName(ctx) {
+        // 状态变量名与全 chunk 标识符 + 本插件 fresh 名去重（防遮蔽用户变量）
+        const used = (0, helpers_1.collectIdentifierNames)(ctx.ast);
+        for (const u of this.usedFreshNames)
+            used.add(u);
         const chars = 'abcdefghijklmnopqrstuvwxyz';
-        let name = '';
-        for (let i = 0; i < 6; i++) {
-            name += chars[ctx.rng.int(0, chars.length - 1)];
+        let name = '_' + chars[ctx.rng.int(0, 25)];
+        for (let i = 0; i < 5; i++) {
+            name += chars[ctx.rng.int(0, 25)];
         }
-        return '_' + name;
+        while (used.has(name)) {
+            name = '_' + chars[ctx.rng.int(0, 25)];
+            for (let i = 0; i < 5; i++) {
+                name += chars[ctx.rng.int(0, 25)];
+            }
+        }
+        return name;
     }
 }
 exports.ControlFlowFlatteningPlugin = ControlFlowFlatteningPlugin;

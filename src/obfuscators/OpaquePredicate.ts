@@ -120,6 +120,12 @@ export class OpaquePredicatePlugin implements ObfuscationPlugin {
  * For any integer x: x*(x-1) is always even (product of consecutive integers).
  * Therefore x*(x-1) % 2 == 0 is always true.
  * SMT difficulty: HIGH (nonlinear arithmetic is NP-hard for solvers)
+ *
+ * 【32 位安全铁律】部分执行环境（如 fengari 测试宿主）以 32 位
+ * 有符号整数实现整型算术（乘法在 2^31 处回绕）。回绕后的乘积奇偶
+ * 不定，谓词会翻转为假 → 守门失败 → 用户代码静默跳过。
+ * 所有中间乘积必须 < 2^31：x*(x+1) < 2^31 ⟹ x ≤ 46339。
+ * （Delta/Gloop 为 Lua 5.1 纯 double，无回绕；约束对两侧均安全。）
  */
 class NonlinearParityStrategy implements PredicateStrategy {
   name = 'NonlinearParity';
@@ -127,7 +133,8 @@ class NonlinearParityStrategy implements PredicateStrategy {
 
   generate(ctx: ObfuscationContext, truth: PredicateTruth): LuaNode {
     // Generate: ((x * (x - 1)) % 2 == 0) where x is a runtime-computed value
-    const x = ctx.rng.int(100, 999999);
+    // 46339 * 46340 = 2,147,381,260 < 2^31-1（32 位无回绕）
+    const x = ctx.rng.int(100, 46339);
 
     // For any integer n, n*(n+1) is even. We use a variant:
     // (n^2 + n) % 2 == 0 is always true (n*(n+1) is product of consecutive integers)
@@ -187,7 +194,9 @@ class BitManipulationStrategy implements PredicateStrategy {
   difficulty = 5;
 
   generate(ctx: ObfuscationContext, truth: PredicateTruth): LuaNode {
-    const x = ctx.rng.int(1, 1000000);
+    // 【32 位安全铁律】x*x 必须无回绕：x ≤ 46339（46339² = 2,147,308,921 < 2^31-1）
+    // fengari 测试宿主的整型乘法在 2^31 回绕，回绕后 x² 可为负 → 守门翻转。
+    const x = ctx.rng.int(100, 46339);
 
     // (x % 2) == (x % 2) — trivially true but wrapped in arithmetic obfuscation
     // More interesting: x*x >= 0 is always true for real numbers
@@ -232,8 +241,11 @@ class PolynomialRootStrategy implements PredicateStrategy {
   difficulty = 8;
 
   generate(ctx: ObfuscationContext, truth: PredicateTruth): LuaNode {
-    const x = ctx.rng.int(1, 10000);
-    const a = ctx.rng.int(1, 100);
+    // 【32 位安全铁律】a*x^2 必须无回绕：a·x² < 2^31。
+    // x ≤ 4000（x² ≤ 1.6×10^7）且 a ≤ 90（a·x² ≤ 1.44×10^9 < 2^31-1）。
+    // (^2 走 float 幂无回绕；随后的 a* 乘法在 32 位宿主会回绕)
+    const x = ctx.rng.int(1, 4000);
+    const a = ctx.rng.int(1, 90);
 
     // a*x^2 + 1 > 0 for all real x (when a > 0)
     const xSq = createBinaryExpression('^', createNumericLiteral(x), createNumericLiteral(2));

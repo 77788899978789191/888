@@ -32,6 +32,8 @@ export class VMEnginePlugin implements ObfuscationPlugin {
   /** 本构建的运行时发射结果（供验证器/报告使用） */
   emission: RuntimeEmission | null = null;
   seedEngine: SeedEngine | null = null;
+  /** 常量池明细（供验证器做类型冲突检测【子系统 15c】） */
+  pool: PoolEntry[] = [];
 
   transform(ctx: ObfuscationContext): Chunk {
     const intensity = Math.min(5, Math.max(1, Math.round(ctx.config.intensity / 2)));
@@ -49,7 +51,12 @@ export class VMEnginePlugin implements ObfuscationPlugin {
       const key = 'S:' + value;
       const existing = poolIndex.get(key);
       if (existing !== undefined) return existing;
-      const bytes = Array.from(Buffer.from(value, 'utf-8'));
+      // 【字节忠实铁律】luaparse 'pseudo-latin1' 产出的 AST 字符串值：
+      // 每个 UTF-16 code unit = 源码中的一个字节（0-255）。若用 'utf-8'
+      // 编码，≥0x80 的 code unit 会被编码成 2 字节 → 字节串膨胀 →
+      // 解密后的 Lua 字符串长度错误（#s 改变）。
+      // 'latin1' 编码：code unit ↔ 字节 严格一一对应，字节级往返无损。
+      const bytes = Array.from(Buffer.from(value, 'latin1'));
       const ids: number[] = [];
       for (let off = 0; off < bytes.length; off += CHUNK) {
         const chunk = bytes.slice(off, off + CHUNK);
@@ -139,6 +146,7 @@ export class VMEnginePlugin implements ObfuscationPlugin {
     };
     const emission = emitRuntime(seedEngine, layout, pool, opts);
     this.emission = emission;
+    this.pool = pool;
 
     ctx.stats.stringsEncrypted += pool.filter(p => !p.isNumber).length;
     ctx.stats.constantsObfuscated += pool.filter(p => p.isNumber).length;

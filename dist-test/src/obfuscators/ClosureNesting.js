@@ -21,23 +21,24 @@ class ClosureNestingPlugin {
     // ================= 【子系统 54】 =================
     /**
      * 选取局部数值/字符串初始化语句，把值藏进 5-7 层闭包链，
-     * 通过逐层委托的访问器 upvalue 暴露：
+     * 通过逐层委托的访问器 upvalue 暴露。
+     *
+     * 关键设计：闭包链必须作为 LocalStatement 的 init 表达式（单个
+     * IIFE），而非独立 raw 语句 —— 否则后续 pass（CFF α-rename 等）
+     * 重命名变量时无法触及 raw 文本，导致 local 声明与赋值脱钩：
      *
      * local v = 42 →
-     *   local v
-     *   do
+     *   local v = (function()
      *     local l1 = (function() local up = 42
-     *       local l2 = (function() local l3 = (function()
-     *         ... 逐层捕获 up ...
-     *       end)()
-     *       return l3
+     *       return function() return (up + k - k) end
      *     end)()
-     *     v = l2()
-     *   end
+     *     local l2 = function() return l1() end
+     *     ...
+     *     return lN()
+     *   end)()
      */
     nestLocalsInClosures(ctx, rate) {
         (0, helpers_1.forEachStatementList)(ctx.ast, (stmts) => {
-            const insertions = [];
             for (let i = 0; i < stmts.length; i++) {
                 const n = stmts[i];
                 if (n.type !== 'LocalStatement')
@@ -58,28 +59,26 @@ class ClosureNestingPlugin {
                     : this.quote(String(iv.value ?? ''));
                 if (ctx.rng.next() > rate)
                     continue;
-                const v = String(vars[0].name ?? '');
-                const code = this.buildClosureChain(ctx, v, raw, vt === 'StringLiteral');
+                const code = this.buildClosureChain(ctx, raw, vt === 'StringLiteral');
                 if (code) {
-                    // 原语句改为纯声明（无初始化），闭包链语句随后赋值
-                    n.init = [];
-                    insertions.push({ at: i + 1, code });
+                    // 保持 init 结构：变量名留在 AST 中，后续 α-rename 可正确处理
+                    n.init = [{ type: 'GungnirRawExpression', code }];
                     ctx.stats.functionsProxied++;
                 }
-            }
-            insertions.reverse();
-            for (const ins of insertions) {
-                stmts.splice(ins.at, 0, (0, helpers_1.createRawStatement)(ins.code));
             }
         });
     }
     /**
-     * 构造 5-7 层闭包 upvalue 链：
+     * 构造 5-7 层闭包 upvalue 链（返回单个 IIFE 表达式）：
      * L1 持有真实值（upvalue 源头），L2..LN 逐层捕获并转发，
      * 最外层立即调用取回值。每层随机加入无操作运算扰动
      * （扰动家族必须与值类型匹配：数值用算术恒等式，字符串用拼接恒等式）。
+     *
+     * 整条链封装在 (function() ... end)() 内 —— 内部名字（_cn*、_v、
+     * __r）全部为本次构建生成的全局唯一名，作用域封闭在 IIFE 内，
+     * 不会被外部任何 pass 干扰；外部变量名留在 AST 中可被正确重命名。
      */
-    buildClosureChain(ctx, target, rawValue, isString) {
+    buildClosureChain(ctx, rawValue, isString) {
         const depth = ctx.rng.int(ClosureNestingPlugin.DEPTH_MIN, ClosureNestingPlugin.DEPTH_MAX);
         const f = (0, helpers_1.generateLuaIdentifier)(ctx.rng, '_cn', 6);
         // 最内层（L1）：持有真实值
@@ -100,6 +99,7 @@ class ClosureNestingPlugin {
                 `(${k} + _v - ${k})`,
             ]);
         const lines = [];
+        lines.push('(function()');
         lines.push(`local ${inner} = (function() local _v = ${rawValue}`);
         lines.push(`  return function() return ${noise} end`);
         lines.push(`end)()`);
@@ -116,8 +116,9 @@ class ClosureNestingPlugin {
                     : `local __r = ${prev}() return __r`;
             lines.push(`local ${cur} = function() ${forward} end`);
         }
-        // 目标赋值：最外层调用取回
-        lines.push(`${target} = ${f}${depth}()`);
+        // IIFE 返回：最外层调用取回值
+        lines.push(`return ${f}${depth}()`);
+        lines.push('end)()');
         return lines.join('\n');
     }
     // ================= 【子系统 55】 =================

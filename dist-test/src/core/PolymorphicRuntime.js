@@ -68,7 +68,7 @@ function emitRuntime(seedEngine, layout, pool, opts) {
         'RUNA', 'RUNB', 'BUILD', 'DT', 'DTBASE',
         'FADD', 'FSUB', 'FADD2', 'FSUB2',
         'EXEC', 'MUT1', 'MSTEP', 'MUTATE',
-        'STRIDE', 'OFF', 'CSZ', 'CSZM',
+        'STRIDE', 'OFF', 'CSZ', 'CSZM', 'ROTV',
         'GHSH', 'GCHK', 'PAYL', 'IH0', 'IH',
         'RSEL', 'RNGS',
         'GCHECK', 'LOOPG', 'RESUMEALL', 'COROS', 'CORON',
@@ -149,9 +149,31 @@ function emitRuntime(seedEngine, layout, pool, opts) {
     const lcgSeedSbox = layout.sboxSeed;
     const mut1 = 2000 + (seedEngine.derive('mut1').nextU32() % 3000);
     const mstep = 2000 + (seedEngine.derive('mstep').nextU32() % 3000);
-    const stride = 1 + (seedEngine.derive('stride').nextU32() % 65521);
-    const off = seedEngine.derive('off').nextU32() % 65521;
-    const csz = Math.max(64, pool.length * 2 + 17);
+    // 【子系统 9 缓存槽正确性】slot = ((id*STRIDE + OFF) % CSZ) + 1 必须
+    // 在 id ∈ [0, pool.length) 上单射：若两个不同 id 哈希到同一槽，先解密
+    // 的条目会被错误返回（数字 id 取回字符串 → tonumber → nil → 比较崩溃，
+    // 即间歇性 "compare nil with number" / "arithmetic on a nil value"）。
+    // 方案：CSZ 取严格大于池长度的素数，STRIDE ∈ [1, CSZ)（与素数模互素），
+    // 乘法双射保证不同 id 永不共享槽位。
+    const nextPrimeAbove = (n) => {
+        let x = Math.max(3, n);
+        if (x % 2 === 0)
+            x++;
+        for (;; x += 2) {
+            let isPrime = true;
+            for (let d = 3; d * d <= x; d += 2) {
+                if (x % d === 0) {
+                    isPrime = false;
+                    break;
+                }
+            }
+            if (isPrime)
+                return x;
+        }
+    };
+    const csz = nextPrimeAbove(Math.max(64, pool.length + 1));
+    const stride = 1 + (seedEngine.derive('stride').nextU32() % (csz - 1));
+    const off = seedEngine.derive('off').nextU32() % csz;
     const rotEvery = layout.rotEvery;
     const il = layout.insLen;
     const opPos = layout.opPos;
@@ -198,6 +220,11 @@ function emitRuntime(seedEngine, layout, pool, opts) {
 local ${N.K}, ${N.KN}, ${N.ENC3}, ${N.DEC3}
 do
 local ${N.CACHE} = {}
+-- 【缓存旋转帧】变异 (d) 会把缓存值整体旋转 shift 位；
+-- ROTV 记录累计旋转量。取值/写回必须按 ((slot-1+ROTV)%CSZ)+1 寻址，
+-- 否则洗牌后 slot(id) 里是别的 id 的值 → 数字条目取回字符串 →
+-- tonumber → nil → "arithmetic on a nil value"（间歇性）。
+local ${N.ROTV} = 0
 local ${N.PROGS} = {}
 local ${N.PAGES} = {}
 local ${N.PAGEMAP} = {}
@@ -218,7 +245,10 @@ local ${N.FR} = {}
 ${seedEngine.fragments.map((v, i) => `${N.FR}[${i + 1}] = function(...) return ${mbaConst(v % (2 ** 31 - 1), mdsF)} end`).join('\n')}
 local ${N.MULT} = ${mbaConst(frag.mult, mdsF)}
 local ${N.MOD} = ${mbaConst(frag.mod, mdsF)}
-local ${N.ACC} = 0
+-- 算术一致性：累加器必须以浮点初值启动（0.0）。
+-- fengari/Lua 5.3 整数路径为 32 位回绕，与 TS/Lua 5.1 的双精度运算分歧；
+-- 强制浮点链后，fengari(验证) / Gloop 5.1(目标) / TS(编码) 三方逐位一致。
+local ${N.ACC} = 0.0
 for ${N.i} = 1, 16 do
   ${N.ACC} = (${N.ACC} * ${N.MULT} + ${N.FR}[${N.i}]()) % ${N.MOD}
 end
@@ -229,7 +259,8 @@ if ${N.ACC} ~= ${N.EXPSEED} then ${N.TAINT} = ${N.TAINT} + 1 end
 local ${N.FP} = {}
 ${fpEmbeds.map((e, i) => `${N.FP}[${i + 1}] = (function() return ${e} end)()`).join('\n')}
 local ${N.FPM} = ${mbaConst(31, mdsF)}
-local ${N.FPC} = 0
+-- 浮点累加器（同上：规避 fengari 32 位整数回绕，三方一致）
+local ${N.FPC} = 0.0
 for ${N.i} = 1, 8 do ${N.FPC} = (${N.FPC} * ${N.FPM} + ${N.FP}[${N.i}]) % ${N.MOD} end
 local ${N.EXPFP} = ${mbaConst(fpExpected, mdsF)}
 if (${N.FPC} * ${mbaConst(fp.mask, mdsF)}) % ${N.MOD} ~= ${N.EXPFP} then ${N.TAINT} = ${N.TAINT} + 1 end
@@ -296,7 +327,9 @@ local ${N.FSUB2} = function(x, y) return (x + 255 - y + 1) % 256 end
 
 -- [子系统 70] 完整性哈希（100 分片链）
 local function ${N.GHSH}(s, h)
-  for j = 1, #s do h = (h * 33 + string.byte(s, j)) % 2147483647 end
+  -- 33.0 强制浮点链：h*33 可能超 fengari 32 位整数范围（2^36），
+  -- 浮点（双精度）与 TS ghash / Lua 5.1 逐位一致
+  for j = 1, #s do h = (h * 33.0 + string.byte(s, j)) % 2147483647 end
   return h
 end
 local ${N.IH0} = ${mbaConst(IH0, mdsF)}
@@ -522,6 +555,8 @@ ${N.MUTATE} = function()
     seen = seen + 1
   end
   -- (d) 缓存洗牌【子系统 10】
+  -- 洗牌后值整体旋转 shift 位：ROTV 累计旋转量同步更新，
+  -- 取值函数按 ((slot-1+ROTV)%CSZ)+1 寻址（旋转帧一致 → 语义透明）
   local old = ${N.CACHE}
   local fresh = {}
   local shift = 1 + math.floor(${N.EXEC} % (${N.CSZ} - 1))
@@ -529,6 +564,7 @@ ${N.MUTATE} = function()
     fresh[((kk + shift - 1) % ${N.CSZ}) + 1] = vv
   end
   ${N.CACHE} = fresh
+  ${N.ROTV} = (${N.ROTV} + shift) % ${N.CSZ}
   -- (e) 程序重编码（新字符串对象，改变内存指纹）
   local ids = {}
   for idd in pairs(${N.PROGS}) do ids[#ids + 1] = idd end
@@ -718,7 +754,8 @@ end
 -- 否则载荷（do 块外的代码）看不到 K，调用得到 nil
 ${N.K} = function(id)
   local slot = ((id * ${N.STRIDE} + ${N.OFF}) % ${N.CSZ}) + 1
-  local v = ${N.CACHE}[slot]
+  -- 旋转帧寻址：缓存洗牌后值位于 ((slot-1+ROTV)%CSZ)+1
+  local v = ${N.CACHE}[((slot + ${N.ROTV} - 1) % ${N.CSZ}) + 1]
   if v ~= nil then return v end
   if ${N.DEAD} then return '\\1DEAD\\2' end
   if ${N.TAINT} > ${taintLimit} then return '\\1TNT\\2' end
@@ -740,7 +777,8 @@ ${N.K} = function(id)
     ${N.TAINT} = ${N.TAINT} + 1
     return nil
   end
-  ${N.CACHE}[slot] = out
+  -- 写回同样走旋转帧（与后续洗牌的旋转数学一致）
+  ${N.CACHE}[((slot + ${N.ROTV} - 1) % ${N.CSZ}) + 1] = out
   -- [子系统 76] 周期性内存自校验（每 10 秒）
   local okc, now = pcall(os.clock)
   if okc and type(now) == 'number' and (now - ${N.LASTT}) > 10 then
@@ -853,5 +891,6 @@ end`;
         programBytes: payloadBytes.length,
         pageBytes: pages.reduce((a, p) => a + p.length, 0),
         integrityHash: ih,
+        payloadDebug: payloadBytes,
     };
 }

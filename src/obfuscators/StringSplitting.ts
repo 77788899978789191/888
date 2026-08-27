@@ -59,15 +59,18 @@ export class StringSplittingPlugin implements ObfuscationPlugin {
     node: Record<string, unknown>,
     value: string,
   ): void {
-    // 拆 2-6 段（随机）
-    const segCount = ctx.rng.int(2, Math.min(6, Math.max(2, value.length)));
-    const cuts: number[] = [];
-    for (let i = 1; i < segCount; i++) {
-      cuts.push(ctx.rng.int(1, value.length - 1));
-    }
-    cuts.sort((a, b) => a - b);
+    // 拆 2-6 段（随机，上限不超过串长——每段至少 1 字符）
+    const segCount = ctx.rng.int(2, Math.max(2, Math.min(6, value.length)));
 
-    // 切段
+    // 切点必须严格递增且唯一：若允许重复（如 cuts=[1,1]），
+    // 会产生空段 → string.char() 零参调用 → 运行时 key 拼接错误。
+    // 从 1..len-1 的位置池中不重复抽取 segCount-1 个。
+    const positions: number[] = [];
+    for (let p = 1; p < value.length; p++) positions.push(p);
+    ctx.rng.shuffle(positions);
+    const cuts = positions.slice(0, segCount - 1).sort((a, b) => a - b);
+
+    // 切段（每段长度 ≥1，由唯一切点保证）
     const segments: string[] = [];
     let prev = 0;
     for (const c of cuts) {
@@ -76,13 +79,14 @@ export class StringSplittingPlugin implements ObfuscationPlugin {
     }
     segments.push(value.slice(prev));
 
-    // 位置打散：段 i 放在随机槽位
-    const slots = ctx.rng.shuffle(segments.map((_, i) => i + 1));
-
+    // 关键正确性约束：table.concat 永远按 1..n 顺序读取数组部分，
+    // 因此槽位键必须是恒等映射（[i]=seg[i-1]）——任何槽位置换都会
+    // 产生乱码串。混淆性来自：随机切点 + 每段随机编码（字面量 /
+    // string.char 字节流 / 后续 pass 替换）+ 字段文本顺序打散。
     const fields: { key: LuaNode; value: LuaNode }[] = [];
     for (let i = 0; i < segments.length; i++) {
       const seg = segments[i];
-      const slot = slots[i];
+      const slot = i + 1; // 恒等槽位（语义正确性要求）
       let segNode: LuaNode;
       if (ctx.rng.bool()) {
         // 【子系统 50】string.char 字节流编码段
@@ -106,6 +110,10 @@ export class StringSplittingPlugin implements ObfuscationPlugin {
       }
       fields.push({ key: createNumericLiteral(slot), value: segNode });
     }
+
+    // 【子系统 49】字段文本顺序打散（键控字段与书写顺序无关，
+    // 打散后视觉上仍呈乱序形态，但键保持 1..n 语义）
+    ctx.rng.shuffle(fields);
 
     // 构造 { [slot] = seg, ... } 并包进 table.concat(...)
     const tableCtor: LuaNode = {
