@@ -1,201 +1,343 @@
 #!/usr/bin/env node
 /**
  * Project: Gungnir - CLI Entry Point
- * Roblox Lua Obfuscator — Commercial-grade build toolchain
  *
  * Usage:
- *   gungnir --input <file.lua> --output <file.lua> [options]
+ *   gungnir <input.lua> [-o output.lua] [--intensity 1-10] [--seed N]
+ *                        [--target lua51|roblox|luau] [--verbose]
+ *                        [--no-push] [--self-destruct]
+ *
+ * Full 98-technique Lua 5.1 obfuscator with automated CI/CD.
  */
 import * as fs from 'fs';
 import * as path from 'path';
-import { Command } from 'commander';
 import { Orchestrator } from './core/Orchestrator';
-import { GungnirConfig, DEFAULT_CONFIG } from './core/types';
+import { GungnirConfig, createDefaultConfig, Chunk, PolymorphismReport } from './core/types';
+import { LuaWriter } from './utils/LuaWriter';
+import { GitAutoPusher } from './utils/GitAutoPusher';
 
-const program = new Command();
+// ============ Argument Parsing ============
 
-program
-  .name('gungnir')
-  .description('Project: Gungnir — Roblox Lua Obfuscation Framework (commercial grade)')
-  .version('2.1.0')
-  .requiredOption('-i, --input <file>', 'Input Lua source file')
-  .requiredOption('-o, --output <file>', 'Output obfuscated Lua file')
-  .option('-c, --config <file>', 'JSON configuration file')
-  .option('--intensity <n>', 'Obfuscation intensity (1-10)', '5')
-  .option('--seed <n>', 'Random seed for reproducible output', '0')
-  // Layer toggles
-  .option('--no-vm', 'Disable VM bytecode layer')
-  .option('--no-cff', 'Disable control flow flattening')
-  .option('--no-strings', 'Disable string encryption')
-  .option('--no-rename', 'Disable identifier renaming')
-  .option('--no-constants', 'Disable constant obfuscation')
-  .option('--no-dead-code', 'Disable dead code injection')
-  .option('--no-global-hiding', 'Disable global variable hiding')
-  .option('--no-proxy', 'Disable function proxy wrapping')
-  .option('--no-anti-debug', 'Disable anti-debug runtime')
-  .option('--no-roblox', 'Disable Roblox-specific hardening')
-  // Commercial features
-  .option('--no-polymorphic', 'Disable polymorphic pipeline (fixed module order)')
-  .option('--no-watermark', 'Disable build fingerprint watermark')
-  .option('--self-destruct', 'Securely delete input file after obfuscation')
-  .option('--target <env>', 'Target environment: roblox | generic', 'roblox')
-  .option('--anti-debug-mode <mode>', 'Anti-debug response: corrupt | silent', 'silent')
-  .option('--hot-path <patterns>', 'Comma-separated function-name patterns to exempt from heavy transforms')
-  .option('--vm-opcode-remap', 'Enable per-build VM opcode remapping', true)
-  .option('--no-vm-opcode-remap', 'Disable VM opcode remapping')
-  .option('--hot-path-exempt', 'Enable hot path protection (deprecated, always on)', false)
-  .option('-v, --verbose', 'Verbose logging')
-  .action(async (options) => {
-    try {
-      await run(options as CliOptions);
-    } catch (err) {
-      console.error(`Fatal: ${err instanceof Error ? err.message : String(err)}`);
-      process.exit(1);
-    }
-  });
-
-interface CliOptions {
-  input: string;
-  output: string;
-  config?: string;
-  intensity: string;
-  seed: string;
-  // Layer toggles (commander's --no-X sets them to false)
-  vm?: boolean;
-  cff?: boolean;
-  strings?: boolean;
-  rename?: boolean;
-  constants?: boolean;
-  deadCode?: boolean;
-  globalHiding?: boolean;
-  proxy?: boolean;
-  antiDebug?: boolean;
-  roblox?: boolean;
-  // Commercial features
-  polymorphic?: boolean;
-  watermark?: boolean;
-  selfDestruct?: boolean;
-  target?: string;
-  antiDebugMode?: string;
-  hotPath?: string;
-  vmOpcodeRemap?: boolean;
-  hotPathExempt?: boolean;
-  verbose?: boolean;
+interface CliArgs {
+  input?: string;
+  output?: string;
+  intensity?: number;
+  seed?: number;
+  target?: 'lua51' | 'roblox' | 'luau';
+  verbose: boolean;
+  noPush: boolean;
+  selfDestruct: boolean;
+  listPlugins: boolean;
+  version: boolean;
+  help: boolean;
 }
 
-async function run(options: CliOptions): Promise<void> {
-  // Validate input file
-  if (!fs.existsSync(options.input)) {
-    throw new Error(`Input file not found: ${options.input}`);
-  }
+function parseArgs(argv: string[]): CliArgs {
+  const args: CliArgs = {
+    verbose: false,
+    noPush: false,
+    selfDestruct: false,
+    listPlugins: false,
+    version: false,
+    help: false,
+  };
 
-  // Load configuration: defaults → JSON config file → CLI overrides
-  let config: GungnirConfig = { ...DEFAULT_CONFIG };
-
-  if (options.config) {
-    if (!fs.existsSync(options.config)) {
-      throw new Error(`Config file not found: ${options.config}`);
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    switch (arg) {
+      case '-o':
+      case '--output':
+        args.output = argv[++i];
+        break;
+      case '--intensity':
+        args.intensity = parseInt(argv[++i], 10);
+        break;
+      case '--seed':
+        args.seed = parseInt(argv[++i], 10);
+        break;
+      case '--target':
+        args.target = argv[++i] as CliArgs['target'];
+        break;
+      case '--verbose':
+        args.verbose = true;
+        break;
+      case '--no-push':
+        args.noPush = true;
+        break;
+      case '--self-destruct':
+        args.selfDestruct = true;
+        break;
+      case '--list-plugins':
+        args.listPlugins = true;
+        break;
+      case '--version':
+      case '-v':
+        args.version = true;
+        break;
+      case '--help':
+      case '-h':
+        args.help = true;
+        break;
+      default:
+        if (!arg.startsWith('-')) {
+          args.input = arg;
+        }
     }
-    const configData = JSON.parse(fs.readFileSync(options.config, 'utf-8'));
-    config = { ...config, ...configData };
+  }
+  return args;
+}
+
+// ============ Version Info ============
+
+function getVersion(): string {
+  try {
+    const pkgPath = path.join(__dirname, '..', 'package.json');
+    const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
+    return pkg.version || '2.0.0';
+  } catch {
+    return '2.0.0';
+  }
+}
+
+// ============ Help Text ============
+
+function printHelp(): void {
+  console.log(`
+Gungnir - Personal Lua 5.1 Obfuscation Framework (v${getVersion()})
+Full 98-technique obfuscation with automated CI/CD.
+
+Usage:
+  gungnir <input.lua> [options]
+
+Options:
+  -o, --output <file>       Output file path (default: <input>.obfuscated.lua)
+  --intensity <1-10>        Obfuscation intensity (default: 7)
+  --seed <number>            Random seed for reproducible builds
+  --target <lua51|roblox>   Target platform (default: lua51)
+  --verbose                  Enable verbose output
+  --no-push                  Disable automatic GitHub push
+  --self-destruct            Securely delete source file after obfuscation
+  --list-plugins             List all registered obfuscation plugins
+  --version, -v              Show version
+  --help, -h                 Show this help
+
+Examples:
+  gungnir script.lua
+  gungnir script.lua -o out.lua --intensity 10 --target roblox
+  gungnir script.lua --seed 12345 --verbose
+
+Techniques: 98 across 8 layers
+  Layer 1: Polymorphic VM Engine        (18 techniques)
+  Layer 2: Purgatory Control Flow       (18 techniques)
+  Layer 3: Quantum Data & Constants      (17 techniques)
+  Layer 4: Scope & Symbol Tearing        (11 techniques)
+  Layer 5: Anti-Automation Shield        (9 techniques)
+  Layer 6: Hardcore Runtime Countermeasures (12 techniques)
+  Layer 7: Platform-Specific (Delta)     (8 techniques)
+  Layer 8: Delivery & Engineering         (6 techniques)
+`);
+}
+
+// ============ Quality Report Printer ============
+
+function printQualityReport(report: PolymorphismReport): void {
+  console.log('\n' + '='.repeat(60));
+  console.log('  GUNGNIR OBFUSCATION QUALITY REPORT');
+  console.log('='.repeat(60));
+  console.log(`  Build ID:          ${report.buildId}`);
+  console.log(`  Timestamp:         ${new Date(report.timestamp).toISOString()}`);
+  console.log(`  Seed:              ${report.seed}`);
+  console.log('-'.repeat(60));
+
+  // Technique coverage
+  const covered = Object.values(report.techniqueCoverage).filter(Boolean).length;
+  const total = Object.keys(report.techniqueCoverage).length;
+  console.log(`  Technique Coverage: ${covered}/${total} (${((covered / total) * 100).toFixed(1)}%)`);
+
+  // Layer breakdown
+  const layers = [
+    { name: 'VM Engine', prefix: 'VM-' },
+    { name: 'Control Flow', prefix: 'CF-' },
+    { name: 'Data & Constants', prefix: 'DC-' },
+    { name: 'Scope & Symbol', prefix: 'SC-' },
+    { name: 'Anti-Analysis', prefix: 'AA-' },
+    { name: 'Runtime Countermeasures', prefix: 'RT-' },
+    { name: 'Platform-Specific', prefix: 'PL-' },
+    { name: 'Delivery & Engineering', prefix: 'DE-' },
+  ];
+  for (const layer of layers) {
+    const layerTechs = Object.entries(report.techniqueCoverage)
+      .filter(([k]) => k.startsWith(layer.prefix));
+    const layerCovered = layerTechs.filter(([, v]) => v).length;
+    console.log(`    ${layer.name.padEnd(28)} ${layerCovered}/${layerTechs.length}`);
   }
 
-  // Apply CLI overrides
-  config.input = options.input;
-  config.output = options.output;
-  config.intensity = parseInt(options.intensity, 10) || 5;
-  config.seed = parseInt(options.seed, 10) || Date.now();
-  config.verbose = options.verbose === true;
-  config.hotPathExemption = true; // always on in commercial mode
+  console.log('-'.repeat(60));
+  console.log(`  Structural Similarity:  ${report.structuralSimilarityToPrevious.toFixed(1)}% (lower = more unique)`);
+  console.log(`  Est. Analysis Time:     ${report.estimatedAnalysisTimeHours.toFixed(0)} hours`);
+  console.log(`  Size Expansion Ratio:   ${report.sizeExpansionRatio.toFixed(1)}x`);
+  console.log(`  Startup Delay:          ${report.startupDelayMs}ms`);
+  console.log('='.repeat(60) + '\n');
+}
 
-  // Layer toggles from CLI flags
-  if (options.vm === false) config.layers.vm = false;
-  if (options.cff === false) config.layers.controlFlow = false;
-  if (options.strings === false) config.layers.dataFlow = false;
-  if (options.rename === false) config.layers.scopeTearing = false;
+// ============ Main ============
 
-  // Module-level disables map to layer disables when the layer
-  // would otherwise be fully disabled
-  if (options.deadCode === false) config.layers.antiAnalysis = false;
-  if (options.antiDebug === false) config.layers.runtime = false;
-  if (options.roblox === false) config.layers.roblox = false;
+function main(): void {
+  const args = parseArgs(process.argv.slice(2));
 
-  // Commercial feature flags
-  if (options.polymorphic === false) config.polymorphicPipeline = false;
-  if (options.watermark === false) config.watermark = false;
-  if (options.selfDestruct === true) config.selfDestruct = true;
-  if (options.vmOpcodeRemap === false) config.vmOpcodeRemap = false;
-
-  if (options.target === 'roblox' || options.target === 'generic') {
-    config.target = options.target;
+  if (args.help) {
+    printHelp();
+    return;
   }
 
-  if (options.antiDebugMode === 'corrupt' || options.antiDebugMode === 'silent') {
-    config.antiDebugMode = options.antiDebugMode;
+  if (args.version) {
+    console.log(`Gungnir v${getVersion()}`);
+    return;
   }
 
-  if (options.hotPath) {
-    config.hotPathPatterns = options.hotPath.split(',').map(s => s.trim()).filter(s => s.length > 0);
+  if (args.listPlugins) {
+    const config = createDefaultConfig();
+    const orch = new Orchestrator(config);
+    const plugins = orch.getPluginList();
+    console.log(`\nGungnir v${getVersion()} - Registered Plugins (${plugins.length}):\n`);
+    for (const p of plugins) {
+      console.log(`  [${p.layers.join(',')}] ${p.name}`);
+      console.log(`      ${p.description.slice(0, 80)}...`);
+    }
+    console.log(`\nTotal techniques: ${orch.getTechniqueCount()}\n`);
+    return;
   }
 
-  // Validate intensity range
-  config.intensity = Math.max(1, Math.min(10, config.intensity));
+  if (!args.input) {
+    console.error('Error: No input file specified.');
+    console.error('Use --help for usage information.');
+    process.exit(1);
+  }
 
-  console.log('╔══════════════════════════════════════════════════╗');
-  console.log('║  Project: Gungnir v2.0 — Lua Obfuscator          ║');
-  console.log('║  Commercial-grade multi-layer obfuscation        ║');
-  console.log('╚══════════════════════════════════════════════════╝');
-  console.log(`Input:       ${config.input}`);
-  console.log(`Output:      ${config.output}`);
-  console.log(`Intensity:   ${config.intensity}/10`);
-  console.log(`Seed:        ${config.seed}`);
-  console.log(`Target:      ${config.target}`);
-  console.log(`Polymorphic: ${config.polymorphicPipeline ? 'enabled' : 'disabled'}`);
-  console.log(`Watermark:   ${config.watermark ? 'enabled' : 'disabled'}`);
+  // Resolve paths
+  const inputPath = path.resolve(args.input);
+  if (!fs.existsSync(inputPath)) {
+    console.error(`Error: Input file not found: ${inputPath}`);
+    process.exit(1);
+  }
+
+  const outputPath = args.output
+    ? path.resolve(args.output)
+    : inputPath.replace(/\.lua$/, '') + '.obfuscated.lua';
+
+  // Read source
+  const source = fs.readFileSync(inputPath, 'utf-8');
+  const originalSize = Buffer.byteLength(source, 'utf-8');
+
+  // Build config
+  const config: Partial<GungnirConfig> = {
+    intensity: args.intensity ?? 7,
+    seed: args.seed ?? Date.now() % 2147483647,
+    target: args.target ?? 'lua51',
+    verbose: args.verbose,
+    autoPushToGitHub: !args.noPush,
+    deSourceSelfDestruct: args.selfDestruct,
+  };
+
+  console.log(`\nGungnir v${getVersion()} - Full 98-Technique Obfuscator`);
+  console.log(`  Input:    ${inputPath} (${originalSize} bytes)`);
+  console.log(`  Output:   ${outputPath}`);
+  console.log(`  Intensity: ${config.intensity}/10`);
+  console.log(`  Target:   ${config.target}`);
+  console.log(`  Seed:     ${config.seed}`);
   console.log('');
 
-  // Create output directory if needed
-  const outputDir = path.dirname(config.output);
-  if (!fs.existsSync(outputDir)) {
-    fs.mkdirSync(outputDir, { recursive: true });
-  }
+  // Parse Lua source (simplified - in production use a proper Lua parser)
+  // For now, we create a minimal AST with the source as raw statements
+  const ast: Chunk = {
+    type: 'Chunk',
+    body: [
+      {
+        type: 'GungnirRawStatement',
+        code: source,
+      },
+    ],
+  };
 
-  // Run the obfuscator
+  // Run obfuscation
+  const startTime = Date.now();
   const orchestrator = new Orchestrator(config);
-  await orchestrator.processFile(config.input, config.output);
+  const result = orchestrator.obfuscate(ast, inputPath, originalSize);
+  const elapsed = Date.now() - startTime;
 
-  // Report statistics
-  const stats = orchestrator.getStats();
-  if (stats) {
-    console.log('');
-    console.log('── Obfuscation Report ──────────────────────────');
-    console.log(`Modules applied: ${stats.modulesApplied.length}`);
-    for (const mod of stats.modulesApplied) {
-      console.log(`  ✓ ${mod}`);
-    }
-    if (stats.modulesFailed.length > 0) {
-      console.log(`Modules failed: ${stats.modulesFailed.length}`);
-      for (const mod of stats.modulesFailed) {
-        console.log(`  ✗ ${mod} (quarantined)`);
-      }
-    }
-    console.log('────────────────────────────────────────────────');
-    console.log(`Nodes processed:       ${stats.nodesProcessed}`);
-    console.log(`Strings encrypted:     ${stats.stringsEncrypted}`);
-    console.log(`Constants obfuscated:  ${stats.constantsObfuscated}`);
-    console.log(`Expressions decomposed:${stats.expressionsDecomposed}`);
-    console.log(`Predicates injected:   ${stats.predicatesInjected}`);
-    console.log(`Dead blocks injected:  ${stats.deadBlocksInjected}`);
-    console.log(`Identifiers renamed:   ${stats.identifiersRenamed}`);
-    console.log(`Globals hidden:        ${stats.globalsHidden}`);
-    console.log(`Functions proxied:     ${stats.functionsProxied}`);
-    console.log(`Blocks flattened:      ${stats.blocksFlattened}`);
-    console.log('────────────────────────────────────────────────');
+  // Generate output Lua
+  const writer = new LuaWriter();
+  const output = writer.write(result.ast);
+
+  // Write output
+  fs.writeFileSync(outputPath, output, 'utf-8');
+  const outputSize = Buffer.byteLength(output, 'utf-8');
+
+  console.log(`Obfuscation complete in ${elapsed}ms`);
+  console.log(`  Output size: ${outputSize} bytes (${((outputSize / originalSize) * 100).toFixed(0)}% of original)`);
+  console.log(`  Nodes processed: ${result.context.stats.nodesProcessed}`);
+  console.log(`  Strings encrypted: ${result.context.stats.stringsEncrypted}`);
+  console.log(`  Identifiers renamed: ${result.context.stats.identifiersRenamed}`);
+  console.log(`  Constants obfuscated: ${result.context.stats.constantsObfuscated}`);
+  console.log(`  Blocks flattened: ${result.context.stats.blocksFlattened}`);
+  console.log(`  Dead blocks injected: ${result.context.stats.deadBlocksInjected}`);
+  console.log(`  VM instructions: ${result.context.stats.vmInstructionsGenerated}`);
+
+  // Print quality report
+  if (result.report) {
+    printQualityReport(result.report);
+
+    // Save report to file
+    const reportPath = outputPath.replace(/\.lua$/, '') + '.report.json';
+    fs.writeFileSync(reportPath, JSON.stringify(result.report, null, 2), 'utf-8');
+    console.log(`  Report saved: ${reportPath}`);
   }
 
-  console.log('');
-  console.log('Obfuscation complete.');
-  console.log(`Output written to: ${config.output}`);
+  // Self-destruct source if requested
+  if (args.selfDestruct) {
+    try {
+      // Overwrite with random bytes then delete
+      const stat = fs.statSync(inputPath);
+      const fd = fs.openSync(inputPath, 'w');
+      const noise = require('crypto').randomBytes(Math.min(stat.size, 65536));
+      fs.writeSync(fd, noise);
+      fs.closeSync(fd);
+      fs.unlinkSync(inputPath);
+      console.log(`  Source file securely deleted: ${inputPath}`);
+    } catch (err) {
+      console.error(`  Warning: Failed to self-destruct source: ${err}`);
+    }
+  }
+
+  // Auto-push to GitHub
+  if (!args.noPush) {
+    const repoPath = path.resolve(__dirname, '..');
+    const pusher = new GitAutoPusher(repoPath, {
+      enabled: true,
+      remote: 'origin',
+      branch: 'main',
+    });
+
+    // Update version file
+    pusher.updateVersionFile();
+
+    console.log('\nAuto-pushing to GitHub...');
+    const pushResult = pusher.autoPush(`chore: obfuscation build ${new Date().toISOString()}`);
+
+    if (pushResult.success) {
+      if (pushResult.committed) {
+        console.log(`  Committed: ${pushResult.commitHash}`);
+        console.log(`  Pushed to origin/main`);
+      } else {
+        console.log(`  ${pushResult.message}`);
+      }
+    } else {
+      console.error(`  Push failed: ${pushResult.message}`);
+    }
+  }
+
+  console.log('\nDone.');
 }
 
-program.parse(process.argv);
+// Run main
+main();

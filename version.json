@@ -1,0 +1,9 @@
+{
+  "version": "2.0.0",
+  "buildDate": "2026-08-31T00:00:00Z",
+  "timestamp": 1756598400,
+  "commit": "initial",
+  "techniques": 98,
+  "layers": 8,
+  "description": "Gungnir - Personal Lua 5.1 Obfuscation Framework (Full 98-Technique强化版)"
+}

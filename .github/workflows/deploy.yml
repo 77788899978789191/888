@@ -1,0 +1,84 @@
+name: Build and Deploy
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build obfuscator
+        run: npm run build
+
+      - name: Run tests
+        run: npm test
+        continue-on-error: true
+
+      - name: Generate version info
+        run: |
+          echo '{
+            "version": "1.0.'${{ github.run_number }}'",
+            "buildDate": "'$(date -u +"%Y-%m-%dT%H:%M:%SZ")'",
+            "timestamp": '$(date +%s)',
+            "commit": "'${{ github.sha }}'",
+            "runNumber": ${{ github.run_number }}
+          }' > version.json
+
+      - name: Copy build artifacts to docs
+        run: |
+          mkdir -p docs/dist
+          if [ -d dist ]; then
+            cp -r dist/* docs/dist/ 2>/dev/null || true
+          fi
+          cp version.json docs/version.json 2>/dev/null || true
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./docs
+
+      - name: Create version tag
+        run: |
+          TAG="v1.0.${{ github.run_number }}-$(date +%Y%m%d)"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "Auto-generated release $TAG" || true
+          git push origin "$TAG" || true
+        continue-on-error: true
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

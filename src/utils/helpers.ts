@@ -141,7 +141,7 @@ export function getChildren(node: LuaNode): LuaNode[] {
   return children;
 }
 
-function isLuaNode(value: unknown): value is LuaNode {
+function isLuaNode(value: unknown): boolean {
   return (
     typeof value === 'object' &&
     value !== null &&
