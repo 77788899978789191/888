@@ -296,42 +296,51 @@ export class DataObfuscationEnhancedPlugin implements ObfuscationPlugin {
   // DC-03: High-density MBA
   private applyHighDensityMBA(ctx: ObfuscationContext): void {
     const rate = Math.min(0.1 + ctx.config.intensity * 0.05, 0.6);
+    // Two-phase: collect targets first, then replace after walk to avoid infinite recursion
+    const targets: { node: Record<string, unknown>; value: number }[] = [];
     walk(ctx.ast, (node) => {
       const n = node as unknown as Record<string, unknown>;
-      if (n.type === 'NumericLiteral' && ctx.rng.next() < rate) {
+      if (n.type === 'NumericLiteral' && !n.__gungnir_processed && ctx.rng.next() < rate) {
         const value = Number(n.value);
         if (Number.isInteger(value) && Math.abs(value) < 2 ** 31 && value !== 0 && value !== 1) {
-          const transformed = HighDensityMBA.transform(value, ctx);
-          for (const key of Object.keys(n)) delete n[key];
-          Object.assign(n, transformed);
+          targets.push({ node: n, value });
         }
       }
     });
+    for (const { node, value } of targets) {
+      const transformed = HighDensityMBA.transform(value, ctx);
+      for (const key of Object.keys(node)) delete node[key];
+      Object.assign(node, transformed, { __gungnir_processed: true });
+    }
   }
 
   // DC-04: Table length encoding
   private applyTableLengthEncoding(ctx: ObfuscationContext): void {
     const rate = 0.15;
+    const targets: { node: Record<string, unknown>; value: number }[] = [];
     walk(ctx.ast, (node) => {
       const n = node as unknown as Record<string, unknown>;
-      if (n.type === 'NumericLiteral' && ctx.rng.next() < rate) {
+      if (n.type === 'NumericLiteral' && !n.__gungnir_processed && ctx.rng.next() < rate) {
         const value = Number(n.value);
         if (Number.isInteger(value) && value >= 2 && value <= 32) {
-          const fields: LuaNode[] = [];
-          for (let i = 0; i < value; i++) {
-            fields.push({ type: 'TableValue', key: null, value: createNumericLiteral(0) } as never);
-          }
-          const replacement: LuaNode = {
-            type: 'UnaryExpression',
-            operator: '#',
-            argument: { type: 'TableConstructorExpression', fields },
-          };
-          for (const key of Object.keys(n)) delete n[key];
-          Object.assign(n, replacement);
-          ctx.stats.constantsObfuscated++;
+          targets.push({ node: n, value });
         }
       }
     });
+    for (const { node, value } of targets) {
+      const fields: LuaNode[] = [];
+      for (let i = 0; i < value; i++) {
+        fields.push({ type: 'TableValue', key: null, value: createNumericLiteral(0) } as never);
+      }
+      const replacement: LuaNode = {
+        type: 'UnaryExpression',
+        operator: '#',
+        argument: { type: 'TableConstructorExpression', fields },
+      };
+      for (const key of Object.keys(node)) delete node[key];
+      Object.assign(node, replacement, { __gungnir_processed: true });
+      ctx.stats.constantsObfuscated++;
+    }
   }
 
   // DC-08: Data splitting

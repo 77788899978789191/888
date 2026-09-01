@@ -15,6 +15,7 @@ import { Orchestrator } from './core/Orchestrator';
 import { GungnirConfig, createDefaultConfig, Chunk, PolymorphismReport } from './core/types';
 import { LuaWriter } from './utils/LuaWriter';
 import { GitAutoPusher } from './utils/GitAutoPusher';
+import { parseLua } from './parser/LuaParser';
 
 // ============ Argument Parsing ============
 
@@ -247,17 +248,25 @@ function main(): void {
   console.log(`  Seed:     ${config.seed}`);
   console.log('');
 
-  // Parse Lua source (simplified - in production use a proper Lua parser)
-  // For now, we create a minimal AST with the source as raw statements
-  const ast: Chunk = {
-    type: 'Chunk',
-    body: [
-      {
-        type: 'GungnirRawStatement',
-        code: source,
-      },
-    ],
-  };
+  // Parse Lua source into structured AST using the real Lua 5.1 parser
+  // This is CRITICAL: without a real parser, all AST-based obfuscation
+  // plugins (VM, control flow flattening, opaque predicates, etc.) cannot work.
+  let ast: Chunk;
+  try {
+    ast = parseLua(source);
+  } catch (parseErr) {
+    console.error(`Parse error: ${parseErr}`);
+    console.error('Falling back to raw statement mode (advanced obfuscation will be limited)');
+    ast = {
+      type: 'Chunk',
+      body: [
+        {
+          type: 'GungnirRawStatement',
+          code: source,
+        },
+      ],
+    };
+  }
 
   // Run obfuscation
   const startTime = Date.now();
