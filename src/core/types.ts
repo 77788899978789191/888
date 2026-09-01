@@ -371,6 +371,7 @@ export function createDefaultConfig(): GungnirConfig {
 // ============ Obfuscation Context ============
 
 export interface ObfuscationStats {
+  [key: string]: number;
   nodesProcessed: number;
   stringsEncrypted: number;
   identifiersRenamed: number;

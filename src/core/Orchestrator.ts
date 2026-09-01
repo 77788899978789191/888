@@ -25,6 +25,7 @@ import { createRng } from '../utils/helpers';
 // ============ Layer 1: Polymorphic VM Engine ============
 import { PolymorphicVMPlugin } from '../vm/PolymorphicVM';
 import { BytecodeGenPlugin } from '../vm/BytecodeGen';
+import { VMEnhancedPlugin } from '../vm/VMEnhanced';
 
 // ============ Layer 2: Control Flow ============
 import { ControlFlowFlatteningPlugin } from '../obfuscators/ControlFlowFlattening';
@@ -32,6 +33,7 @@ import { OpaquePredicatePlugin } from '../obfuscators/OpaquePredicate';
 import { ExpressionDecompositionPlugin } from '../obfuscators/ExpressionDecomposition';
 import { DeadCodeInjectionPlugin } from '../obfuscators/DeadCodeInjection';
 import { ControlFlowEnhancedPlugin } from '../obfuscators/ControlFlowEnhanced';
+import { ControlFlowAdvancedPlugin } from '../obfuscators/ControlFlowAdvanced';
 
 // ============ Layer 3: Data & Constants ============
 import { StringEncryptionPlugin } from '../obfuscators/StringEncryption';
@@ -58,6 +60,9 @@ import { PlatformSpecificPlugin } from '../obfuscators/PlatformSpecific';
 // ============ Layer 8: Delivery & Engineering ============
 import { WatermarkPlugin } from '../obfuscators/Watermark';
 import { DeliveryEngineeringPlugin } from '../obfuscators/DeliveryEngineering';
+import { DataDeliveryEnhancedPlugin } from '../obfuscators/DataDeliveryEnhanced';
+import { UltimateTechniquesPlugin } from '../obfuscators/UltimateTechniques';
+import { AdvancedTechniquesPlugin } from '../obfuscators/AdvancedTechniques';
 
 export class Orchestrator {
   private config: GungnirConfig;
@@ -78,6 +83,7 @@ export class Orchestrator {
     // Layer 1: VM Engine
     if (this.config.vmEnabled) {
       this.plugins.push(new PolymorphicVMPlugin());
+      this.plugins.push(new VMEnhancedPlugin()); // VM-19~VM-22
     }
 
     // Layer 2: Control Flow
@@ -87,6 +93,7 @@ export class Orchestrator {
     if (this.config.cfExpressionDecomposition) layer2.push(new ExpressionDecompositionPlugin());
     if (this.config.cfDeadCodeInjection) layer2.push(new DeadCodeInjectionPlugin());
     layer2.push(new ControlFlowEnhancedPlugin());
+    layer2.push(new ControlFlowAdvancedPlugin()); // CF-19~CF-20
     this.plugins.push(...this.randomizeLayer(layer2));
 
     // Layer 3: Data & Constants
@@ -94,6 +101,7 @@ export class Orchestrator {
     if (this.config.dcStringAesEncryption) layer3.push(new StringEncryptionPlugin());
     if (this.config.dcConstantPoolReplacement) layer3.push(new ConstantObfuscationPlugin());
     layer3.push(new DataObfuscationEnhancedPlugin());
+    layer3.push(new DataDeliveryEnhancedPlugin()); // DC-18 + DE-07~DE-09
     this.plugins.push(...this.randomizeLayer(layer3));
 
     // Layer 4: Scope & Symbol
@@ -124,6 +132,12 @@ export class Orchestrator {
     if (this.config.deUniqueFingerprintWatermark) layer8.push(new WatermarkPlugin());
     layer8.push(new DeliveryEngineeringPlugin());
     this.plugins.push(...layer8);
+
+    // Layer 9: Ultimate Reinforcement Techniques (TT-01~TT-16, TT-25~TT-28)
+    const layer9: ObfuscationPlugin[] = [];
+    layer9.push(new UltimateTechniquesPlugin()); // TT-01~TT-16
+    layer9.push(new AdvancedTechniquesPlugin()); // TT-25~TT-28
+    this.plugins.push(...this.randomizeLayer(layer9));
   }
 
   /**
@@ -207,7 +221,7 @@ export class Orchestrator {
    * Get total technique count.
    */
   getTechniqueCount(): number {
-    return 98;
+    return 128;
   }
 
   /**
