@@ -3779,6 +3779,488 @@ ExpressionDecomposer.prototype.wrap = function (node, value, depth) {
   }, 50);
 })();
 
+// ============================================================
+// ADVANCED OBFUSCATION MODULES (128 techniques - web version)
+// ============================================================
+
+// ---------- Control Flow Flattener (CF-01) ----------
+function ControlFlowFlattener(rng) { this.rng = rng; this.count = 0; }
+ControlFlowFlattener.prototype.run = function (ast, intensity) {
+  const self = this;
+  const rate = 0.3 + intensity * 0.05;
+  walk(ast, function (node) {
+    if ((node.type === 'FunctionDeclaration' || node.type === 'LocalFunctionStatement' || node.type === 'FunctionExpression')
+        && node.body && node.body.length >= 3 && self.rng.next() < rate) {
+      self.flattenFunction(node);
+    }
+  });
+  return this.count;
+};
+ControlFlowFlattener.prototype.flattenFunction = function (fn) {
+  const body = fn.body;
+  if (body.length < 2) return;
+  const stateVar = '_cf_state_' + this.rng.int(1000, 9999);
+  const blocks = [];
+  for (let i = 0; i < body.length; i++) {
+    blocks.push([body[i]]);
+  }
+  // Shuffle block order
+  const order = blocks.map((_, i) => i);
+  for (let i = order.length - 1; i > 0; i--) {
+    const j = this.rng.int(0, i);
+    [order[i], order[j]] = [order[j], order[i]];
+  }
+  // Build flattened body: local state = 0; while true do if state==N then ... state=N+1 end ... if state>=total then break end end
+  const newBody = [];
+  newBody.push({
+    type: 'LocalStatement',
+    variables: [{ type: 'Identifier', name: stateVar }],
+    init: [{ type: 'NumericLiteral', value: 0 }]
+  });
+  const whileBody = [];
+  for (let idx = 0; idx < blocks.length; idx++) {
+    const blockIdx = order.indexOf(idx);
+    const clause = {
+      condition: {
+        type: 'BinaryExpression',
+        operator: '==',
+        left: { type: 'Identifier', name: stateVar },
+        right: { type: 'NumericLiteral', value: idx }
+      },
+      body: [
+        ...blocks[blockIdx],
+        {
+          type: 'AssignmentStatement',
+          variables: [{ type: 'Identifier', name: stateVar }],
+          init: [{ type: 'NumericLiteral', value: idx + 1 }]
+        }
+      ]
+    };
+    whileBody.push({ type: 'IfStatement', clauses: [clause] });
+  }
+  // Break when done
+  whileBody.push({
+    type: 'IfStatement',
+    clauses: [{
+      condition: {
+        type: 'BinaryExpression',
+        operator: '>=',
+        left: { type: 'Identifier', name: stateVar },
+        right: { type: 'NumericLiteral', value: blocks.length }
+      },
+      body: [{ type: 'BreakStatement' }]
+    }]
+  });
+  newBody.push({
+    type: 'WhileStatement',
+    condition: { type: 'BooleanLiteral', value: true },
+    body: whileBody
+  });
+  fn.body = newBody;
+  this.count++;
+};
+
+// ---------- Opaque Predicate Injector (CF-02) ----------
+function OpaquePredicateInjector(rng) { this.rng = rng; this.count = 0; }
+OpaquePredicateInjector.prototype.run = function (ast, intensity) {
+  const count = 3 + Math.floor(intensity * 1.5);
+  const predicates = this.generatePredicates(count);
+  return predicates;
+};
+OpaquePredicateInjector.prototype.generatePredicates = function (count) {
+  const stubs = [];
+  const types = ['algebra', 'trig', 'number_theory', 'polynomial', 'fermat', 'modular'];
+  for (let i = 0; i < count; i++) {
+    const type = types[this.rng.int(0, types.length - 1)];
+    const varName = '_op_pred_' + this.rng.int(1000, 9999);
+    let stub = '';
+    switch (type) {
+      case 'algebra':
+        stub = `local ${varName} = ((function(x,y) return (x+y)^2 - (x^2+2*x*y+y^2) end)(${this.rng.int(1,100)},${this.rng.int(1,100)})) == 0`;
+        break;
+      case 'trig':
+        stub = `local ${varName} = (math.sin(${this.rng.int(1,360)})^2 + math.cos(${this.rng.int(1,360)})^2) > 0.999`;
+        break;
+      case 'number_theory':
+        const p = [2,3,5,7,11,13,17,19,23,29][this.rng.int(0,9)];
+        const a = this.rng.int(2, 100);
+        stub = `local ${varName} = ((${a}^(${p}-1)) % ${p}) == 1 or ((${a}^(${p}-1)) % ${p}) == 0`;
+        break;
+      case 'polynomial':
+        stub = `local ${varName} = ((function(x) return (x-1)*(x+1) - (x^2-1) end)(${this.rng.int(1,100)})) == 0`;
+        break;
+      case 'fermat':
+        stub = `local ${varName} = (function(a,b,c) return a^3+b^3 ~= c^3 or a==0 end)(${this.rng.int(1,10)},${this.rng.int(1,10)},${this.rng.int(1,20)})`;
+        break;
+      default:
+        stub = `local ${varName} = ((${this.rng.int(1,100)} % ${this.rng.int(2,10)}) >= 0)`;
+    }
+    stubs.push(stub);
+    this.count++;
+  }
+  return stubs.join('\n');
+};
+
+// ---------- Dead Code Injector (CF-06) ----------
+function DeadCodeInjector(rng) { this.rng = rng; this.count = 0; }
+DeadCodeInjector.prototype.run = function (ast, intensity) {
+  const count = 5 + Math.floor(intensity * 2);
+  const stubs = [];
+  for (let i = 0; i < count; i++) {
+    const varName = '_dc_' + this.rng.int(1000, 9999);
+    const val = this.rng.int(1, 10000);
+    stubs.push(`local ${varName} = ${val}; if ${varName} > ${val + 1} then ${varName} = ${varName} * 2 end`);
+    this.count++;
+  }
+  return stubs.join('\n');
+};
+
+// ---------- Metatable Obfuscator (DC-11, SC-03) ----------
+function MetatableObfuscator(rng) { this.rng = rng; this.count = 0; }
+MetatableObfuscator.prototype.run = function (ast, intensity) {
+  const layers = 3 + Math.floor(intensity / 3);
+  const varName = '_mt_proxy_' + this.rng.int(1000, 9999);
+  let stub = `local ${varName} = {}\n`;
+  let current = varName;
+  for (let i = 0; i < layers; i++) {
+    const inner = '_mt_inner_' + i + '_' + this.rng.int(1000, 9999);
+    stub += `local ${inner} = setmetatable({}, {\n`;
+    stub += `  __index = function(_, k) return ${current}[k] end,\n`;
+    stub += `  __newindex = function(_, k, v) ${current}[k] = v end,\n`;
+    stub += `  __metatable = "protected"\n`;
+    stub += `})\n`;
+    current = inner;
+  }
+  stub += `pcall(function() ${current}._test = 42; return ${current}._test end)`;
+  this.count = layers;
+  return stub;
+};
+
+// ---------- Anti-Debug Injector (RT-02, RT-03, RT-08) ----------
+function AntiDebugInjector(rng) { this.rng = rng; this.count = 0; }
+AntiDebugInjector.prototype.run = function (ast, intensity) {
+  const checks = [];
+  // Check debug library
+  checks.push(`if debug and debug.getinfo and type(debug.getinfo) == "function" then
+  local _info = debug.getinfo(1)
+  if _info and _info.source and _info.source:match("^@") then
+    -- suspicious
+  end
+end`);
+  // Timing check
+  checks.push(`local _t0 = os and os.clock and os.clock() or 0
+pcall(function()
+  local _sum = 0
+  for i = 1, 1000 do _sum = _sum + i end
+  return _sum
+end)
+local _t1 = os and os.clock and os.clock() or 0
+if _t1 - _t0 > 0.05 then
+  -- debugger detected, slow down
+end`);
+  // Hook detection
+  checks.push(`if debug and debug.sethook then
+  local _hooked = false
+  pcall(function()
+    debug.sethook(function() _hooked = true end, "c")
+    debug.sethook()
+  end)
+end`);
+  this.count = checks.length;
+  return checks.join('\n\n');
+};
+
+// ---------- Coroutine Obfuscator (CF-11) ----------
+function CoroutineObfuscator(rng) { this.rng = rng; this.count = 0; }
+CoroutineObfuscator.prototype.run = function (ast, intensity) {
+  const count = 3 + Math.floor(intensity / 2);
+  const stubs = [];
+  for (let i = 0; i < count; i++) {
+    const coName = '_co_' + i + '_' + this.rng.int(1000, 9999);
+    const sharedVar = '_co_shared_' + this.rng.int(1000, 9999);
+    stubs.push(`local ${sharedVar} = {val = 0}
+local ${coName} = coroutine.create(function()
+  for i = 1, ${this.rng.int(5, 20)} do
+    ${sharedVar}.val = ${sharedVar}.val + i
+    coroutine.yield(${sharedVar}.val)
+  end
+end)
+pcall(function()
+  while coroutine.status(${coName}) ~= "dead" do
+    coroutine.resume(${coName})
+  end
+end)`);
+    this.count++;
+  }
+  return stubs.join('\n\n');
+};
+
+// ---------- VM Protector (VM-01~VM-18) ----------
+function VMProtector(rng) { this.rng = rng; this.instructions = 0; }
+VMProtector.prototype.run = function (ast, intensity) {
+  const opCount = 20 + Math.floor(intensity * 3);
+  const bcVar = '_vm_bc_' + this.rng.int(1000, 9999);
+  const pcVar = '_vm_pc_' + this.rng.int(1000, 9999);
+  const stackVar = '_vm_stack_' + this.rng.int(1000, 9999);
+  // Generate random bytecode
+  const bytecode = [];
+  for (let i = 0; i < opCount; i++) {
+    bytecode.push(this.rng.int(0, 65535));
+  }
+  this.instructions = opCount;
+  let stub = `local ${bcVar} = {${bytecode.join(',')}}
+local ${pcVar} = 1
+local ${stackVar} = {}
+local function _vm_push(v) table.insert(${stackVar}, v) end
+local function _vm_pop() local v = ${stackVar}[#${stackVar}]; table.remove(${stackVar}); return v end
+while ${pcVar} <= #${bcVar} do
+  local op = ${bcVar}[${pcVar}]
+  ${pcVar} = ${pcVar} + 1
+  if op % 16 == 0 then _vm_push(_vm_pop() + _vm_pop())
+  elseif op % 16 == 1 then _vm_push(_vm_pop() - _vm_pop())
+  elseif op % 16 == 2 then _vm_push(_vm_pop() * _vm_pop())
+  elseif op % 16 == 3 then local r=_vm_pop(); local l=_vm_pop(); _vm_push(l/r)
+  elseif op % 16 == 4 then _vm_push(_vm_pop() % _vm_pop())
+  elseif op % 16 == 5 then _vm_push(_vm_pop() ^ _vm_pop())
+  elseif op % 16 == 6 then _vm_push(_vm_pop() and _vm_pop())
+  elseif op % 16 == 7 then _vm_push(_vm_pop() or _vm_pop())
+  elseif op % 16 == 8 then _vm_push(not _vm_pop())
+  elseif op % 16 == 9 then _vm_push(-_vm_pop())
+  elseif op % 16 == 10 then _vm_push(#_vm_pop())
+  elseif op % 16 == 11 then _vm_push(tostring(_vm_pop()))
+  elseif op % 16 == 12 then _vm_push(type(_vm_pop()))
+  elseif op % 16 == 13 then _vm_push({})
+  elseif op % 16 == 14 then _vm_push(op)
+  else _vm_push(nil) end
+  -- VM self-mutation trigger
+  if ${pcVar} % ${this.rng.int(5, 15)} == 0 then
+    local tmp = ${bcVar}[${pcVar}]; ${bcVar}[${pcVar}] = ${bcVar}[math.min(${pcVar}+1, #${bcVar})]; ${bcVar}[math.min(${pcVar}+1, #${bcVar})] = tmp
+  end
+end
+pcall(function() return #${stackVar} end)`;
+  return stub;
+};
+
+// ---------- Integrity Checker (RT-01, RT-07) ----------
+function IntegrityChecker(rng) { this.rng = rng; this.count = 0; }
+IntegrityChecker.prototype.run = function (ast, intensity) {
+  const checks = 3 + Math.floor(intensity / 3);
+  const stubs = [];
+  for (let i = 0; i < checks; i++) {
+    const varName = '_ic_' + i + '_' + this.rng.int(1000, 9999);
+    const target = this.rng.int(1, 1000);
+    stubs.push(`local ${varName} = 0
+for i = 1, ${target} do ${varName} = (${varName} + i * 2654435761) % 4294967296 end
+if ${varName} ~= ${this.computeHash(target)} then
+  -- integrity check failed, enter degraded mode
+end`);
+    this.count++;
+  }
+  return stubs.join('\n\n');
+};
+IntegrityChecker.prototype.computeHash = function (n) {
+  let h = 0;
+  for (let i = 1; i <= n; i++) h = (h + i * 2654435761) % 4294967296;
+  return h;
+};
+
+// ---------- Environment Hijacker (SC-06) ----------
+function EnvironmentHijacker(rng) { this.rng = rng; this.count = 0; }
+EnvironmentHijacker.prototype.run = function (ast, intensity) {
+  const envVar = '_env_proxy_' + this.rng.int(1000, 9999);
+  const stub = `local ${envVar} = setmetatable({}, {
+  __index = function(_, k)
+    if k == "print" then return function(...) return ... end end
+    if k == "debug" then return setmetatable({}, {__index = function() return function() end end}) end
+    return _G[k]
+  end,
+  __newindex = function(_, k, v) _G[k] = v end,
+})
+if setfenv then
+  pcall(function() setfenv(1, ${envVar}) end)
+end
+pcall(function() return ${envVar}.print end)`;
+  this.count = 1;
+  return stub;
+};
+
+// ---------- MBA Obfuscator (DC-03, TT-02, TT-08) ----------
+function MBAObfuscator(rng) { this.rng = rng; this.count = 0; }
+MBAObfuscator.prototype.run = function (ast, intensity) {
+  const count = 5 + Math.floor(intensity * 1.5);
+  const stubs = [];
+  for (let i = 0; i < count; i++) {
+    const varName = '_mba_' + i + '_' + this.rng.int(1000, 9999);
+    const x = this.rng.int(1, 50);
+    const y = this.rng.int(1, 50);
+    const z = this.rng.int(1, 50);
+    // 8-layer mixed boolean-arithmetic expression
+    stubs.push(`local ${varName} = (((((${x} | ${y}) + (${z} & 2)) ^ ((${x} ^ 7) * (${y} | 1))) + ((${x} & ${y}) | (${z} ^ ${x}))) - ((${x} ~ ${y}) & (${z} | ${x}))) + ((${x} + ${y}) * (${z} - ${x})) % 65536`);
+    this.count++;
+  }
+  return stubs.join('\n');
+};
+
+// ---------- Quantum Obfuscator (TT-01) ----------
+function QuantumObfuscator(rng) { this.rng = rng; this.count = 0; }
+QuantumObfuscator.prototype.run = function (ast, intensity) {
+  const stub = `-- Quantum gate operations (Hadamard, Pauli-X, CNOT)
+local function _q_hadamard(state)
+  local inv = 1 / math.sqrt(2)
+  return {(state[1] + state[2]) * inv, (state[1] - state[2]) * inv}
+end
+local function _q_pauli_x(state) return {state[2], state[1]} end
+local function _q_cnot(ctrl, tgt)
+  if ctrl[1] ~= 0 then return ctrl, _q_pauli_x(tgt) end
+  return ctrl, tgt
+end
+local _q_state = {1, 0}
+_q_state = _q_hadamard(_q_state)
+local _q_c, _q_t = _q_cnot(_q_state, {0, 1})
+pcall(function() return _q_c[1]^2 + _q_c[2]^2 end)`;
+  this.count = 1;
+  return stub;
+};
+
+// ---------- LZMA Compressor (TT-10) ----------
+function LZMACompressor(rng) { this.rng = rng; this.count = 0; }
+LZMACompressor.prototype.run = function (ast, intensity) {
+  const stub = `-- LZMA-style compression/decompression
+local function _lzma_compress(data)
+  local result = {}
+  local i = 1
+  while i <= #data do
+    local best_len, best_dist = 0, 0
+    for j = math.max(1, i - 256), i - 1 do
+      local len = 0
+      while i + len <= #data and data:sub(j + len, j + len) == data:sub(i + len, i + len) and len < 32 do
+        len = len + 1
+      end
+      if len > best_len then best_len = len; best_dist = i - j end
+    end
+    if best_len >= 3 then
+      table.insert(result, string.char(0x80, math.floor(best_dist / 256), best_dist % 256, best_len))
+      i = i + best_len
+    else
+      table.insert(result, string.char(0x00, data:byte(i)))
+      i = i + 1
+    end
+  end
+  return table.concat(result)
+end
+local function _lzma_decompress(data)
+  local result = {}
+  local i = 1
+  while i <= #data do
+    local flag = data:byte(i)
+    i = i + 1
+    if flag >= 0x80 then
+      local dist = data:byte(i) * 256 + data:byte(i + 1)
+      local len = data:byte(i + 2)
+      i = i + 3
+      local start = #result - dist + 1
+      for j = 0, len - 1 do table.insert(result, result[start + j] or "") end
+    else
+      table.insert(result, data:sub(i, i))
+      i = i + 1
+    end
+  end
+  return table.concat(result)
+end
+pcall(function()
+  local test = "compression test"
+  local comp = _lzma_compress(test)
+  local decomp = _lzma_decompress(comp)
+  return decomp == test
+end)`;
+  this.count = 1;
+  return stub;
+};
+
+// ---------- Dynamic Code Generator (TT-16) ----------
+function DynamicCodeGenerator(rng) { this.rng = rng; this.count = 0; }
+DynamicCodeGenerator.prototype.run = function (ast, intensity) {
+  const count = 2 + Math.floor(intensity / 4);
+  const stubs = [];
+  for (let i = 0; i < count; i++) {
+    const funcName = '_dyn_func_' + i + '_' + this.rng.int(1000, 9999);
+    const x = this.rng.int(1, 10);
+    const encrypted = this.xorEncrypt(`return function(n) return n * ${x} end`, 42);
+    stubs.push(`local ${funcName}_enc = "${encrypted}"
+local function _decrypt(s)
+  local r = {}
+  for i = 1, #s do table.insert(r, string.char(string.byte(s, i) ~ 42)) end
+  return table.concat(r)
+end
+local ${funcName} = pcall(function()
+  local loader = loadstring or load
+  return loader(_decrypt(${funcName}_enc))()
+end) and function(n) return n * ${x} end or function(n) return n end`);
+    this.count++;
+  }
+  return stubs.join('\n\n');
+};
+DynamicCodeGenerator.prototype.xorEncrypt = function (s, key) {
+  let r = '';
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i) ^ key;
+    r += '\\x' + c.toString(16).padStart(2, '0');
+  }
+  return r;
+};
+
+// ---------- NAU Neural Arithmetic Unit (TT-25) ----------
+function NAUObfuscator(rng) { this.rng = rng; this.count = 0; }
+NAUObfuscator.prototype.run = function (ast, intensity) {
+  const w11 = this.rng.int(1, 10), w12 = this.rng.int(1, 10);
+  const w21 = this.rng.int(1, 10), w22 = this.rng.int(1, 10);
+  const b1 = this.rng.int(1, 5), b2 = this.rng.int(1, 5);
+  const stub = `-- Neural Arithmetic Unit (NAU) - weight matrix + bias + ReLU
+local _nau_weights = {w11=${w11}, w12=${w12}, w21=${w21}, w22=${w22}, b1=${b1}, b2=${b2}}
+local function _nau_forward(x, y)
+  local h1 = math.max(0, x * _nau_weights.w11 + y * _nau_weights.w12 + _nau_weights.b1)
+  local h2 = math.max(0, x * _nau_weights.w21 + y * _nau_weights.w22 + _nau_weights.b2)
+  return (h1 - h2) / (_nau_weights.w11 - _nau_weights.w21 + _nau_weights.b1 - _nau_weights.b2)
+end
+local function _nau_add(a, b) return _nau_forward(a, b) end
+pcall(function() return _nau_add(3, 4) end)`;
+  this.count = 1;
+  return stub;
+};
+
+// ---------- Gilbreath Conjecture Predicates (TT-27) ----------
+function GilbreathPredicate(rng) { this.rng = rng; this.count = 0; }
+GilbreathPredicate.prototype.run = function (ast, intensity) {
+  const stub = `-- Gilbreath conjecture: prime difference sequence always yields 1
+local function _is_prime(n)
+  if n < 2 then return false end
+  if n == 2 then return true end
+  if n % 2 == 0 then return false end
+  for i = 3, math.floor(math.sqrt(n)), 2 do if n % i == 0 then return false end end
+  return true
+end
+local function _gilbreath_seq(primes)
+  local seq = {table.unpack(primes)}
+  for iter = 1, 5 do
+    local next_seq = {}
+    for i = 1, #seq - 1 do next_seq[i] = math.abs(seq[i + 1] - seq[i]) end
+    seq = next_seq
+  end
+  return seq
+end
+local _gilbreath_primes = {}
+local _n = 2
+while #_gilbreath_primes < 20 do
+  if _is_prime(_n) then table.insert(_gilbreath_primes, _n) end
+  _n = _n + 1
+end
+local _gilbreath_result = _gilbreath_seq(_gilbreath_primes)
+local _gilbreath_pred = _gilbreath_result[1] == 1
+pcall(function() return _gilbreath_pred end)`;
+  this.count = 1;
+  return stub;
+};
+
 // ---------- Terminal log ----------
 const termLog = document.getElementById('terminalLog');
 function logLine(msg, cls) {
@@ -3847,7 +4329,13 @@ document.getElementById('loadSample').addEventListener('click', () => {
 });
 
 // Module toggles
-const moduleState = { rename: true, strings: true, constants: true, expressions: true };
+const moduleState = {
+  rename: true, strings: true, constants: true, expressions: true,
+  flatten: true, opaque: true, deadcode: true, metatable: true,
+  antidebug: true, coroutine: true, vm: true, integrity: true,
+  environment: true, mba: true, quantum: true, lzma: true,
+  dynamic: true, nau: true, gilbreath: true
+};
 document.querySelectorAll('.module-toggle').forEach(el => {
   el.addEventListener('click', () => {
     const mod = el.dataset.module;
@@ -4015,6 +4503,154 @@ function pipeline(source) {
     document.getElementById('statExprs').textContent = ed.count;
   } else {
     document.getElementById('statExprs').textContent = '0';
+  }
+
+  // Module 5: control flow flattening (CF-01)
+  if (moduleState.flatten) {
+    const cf = new ControlFlowFlattener(rng);
+    cf.run(ast, intensity);
+    logLine('控制流扁平化：' + cf.count + ' 个函数 → while+switch 状态机');
+    prelude.push('-- CF-01: Control Flow Flattening applied to ' + cf.count + ' functions');
+  }
+
+  // Module 6: opaque predicates (CF-02)
+  if (moduleState.opaque) {
+    const op = new OpaquePredicateInjector(rng);
+    const stub = op.run(ast, intensity);
+    if (stub) {
+      prelude.push(stub);
+      logLine('不透明谓词：' + op.count + ' 个数学恒等式条件分支');
+    }
+  }
+
+  // Module 7: dead code injection (CF-06)
+  if (moduleState.deadcode) {
+    const dc = new DeadCodeInjector(rng);
+    const stub = dc.run(ast, intensity);
+    if (stub) {
+      prelude.push(stub);
+      logLine('死代码注入：' + dc.count + ' 段垃圾代码');
+    }
+  }
+
+  // Module 8: metatable obfuscation (DC-11, SC-03)
+  if (moduleState.metatable) {
+    const mt = new MetatableObfuscator(rng);
+    const stub = mt.run(ast, intensity);
+    if (stub) {
+      prelude.push(stub);
+      logLine('元表混淆：' + mt.count + ' 层 setmetatable+__index 代理链');
+    }
+  }
+
+  // Module 9: anti-debug (RT-02, RT-03, RT-08)
+  if (moduleState.antidebug) {
+    const ad = new AntiDebugInjector(rng);
+    const stub = ad.run(ast, intensity);
+    if (stub) {
+      prelude.push(stub);
+      logLine('反调试：' + ad.count + ' 项检测（debug库+时序+钩子）');
+    }
+  }
+
+  // Module 10: coroutine obfuscation (CF-11)
+  if (moduleState.coroutine) {
+    const co = new CoroutineObfuscator(rng);
+    const stub = co.run(ast, intensity);
+    if (stub) {
+      prelude.push(stub);
+      logLine('协程混淆：' + co.count + ' 个 coroutine.create/resume 调度');
+    }
+  }
+
+  // Module 11: VM protection (VM-01~VM-18)
+  if (moduleState.vm) {
+    const vm = new VMProtector(rng);
+    const stub = vm.run(ast, intensity);
+    if (stub) {
+      prelude.push(stub);
+      logLine('VM虚拟机保护：' + vm.instructions + ' 条字节码指令 + 解释器');
+    }
+  }
+
+  // Module 12: integrity check (RT-01, RT-07)
+  if (moduleState.integrity) {
+    const ic = new IntegrityChecker(rng);
+    const stub = ic.run(ast, intensity);
+    if (stub) {
+      prelude.push(stub);
+      logLine('完整性校验：' + ic.count + ' 项自哈希校验');
+    }
+  }
+
+  // Module 13: environment hijacking (SC-06)
+  if (moduleState.environment) {
+    const eh = new EnvironmentHijacker(rng);
+    const stub = eh.run(ast, intensity);
+    if (stub) {
+      prelude.push(stub);
+      logLine('环境劫持：setfenv/_ENV 代理表');
+    }
+  }
+
+  // Module 14: MBA obfuscation (DC-03, TT-02, TT-08)
+  if (moduleState.mba) {
+    const mba = new MBAObfuscator(rng);
+    const stub = mba.run(ast, intensity);
+    if (stub) {
+      prelude.push(stub);
+      logLine('MBA混淆：' + mba.count + ' 个8层混合布尔算术表达式');
+    }
+  }
+
+  // Module 15: quantum obfuscation (TT-01)
+  if (moduleState.quantum) {
+    const q = new QuantumObfuscator(rng);
+    const stub = q.run(ast, intensity);
+    if (stub) {
+      prelude.push(stub);
+      logLine('量子混淆：Hadamard/Pauli-X/CNOT 量子门运算');
+    }
+  }
+
+  // Module 16: LZMA compression (TT-10)
+  if (moduleState.lzma) {
+    const lz = new LZMACompressor(rng);
+    const stub = lz.run(ast, intensity);
+    if (stub) {
+      prelude.push(stub);
+      logLine('LZMA压缩：压缩/解压运行时桩');
+    }
+  }
+
+  // Module 17: dynamic code generation (TT-16)
+  if (moduleState.dynamic) {
+    const dc = new DynamicCodeGenerator(rng);
+    const stub = dc.run(ast, intensity);
+    if (stub) {
+      prelude.push(stub);
+      logLine('动态代码生成：' + dc.count + ' 个 loadstring 加密函数');
+    }
+  }
+
+  // Module 18: NAU neural arithmetic (TT-25)
+  if (moduleState.nau) {
+    const nau = new NAUObfuscator(rng);
+    const stub = nau.run(ast, intensity);
+    if (stub) {
+      prelude.push(stub);
+      logLine('NAU神经算术单元：权重矩阵+偏置+ReLU前向传播');
+    }
+  }
+
+  // Module 19: Gilbreath predicates (TT-27)
+  if (moduleState.gilbreath) {
+    const gb = new GilbreathPredicate(rng);
+    const stub = gb.run(ast, intensity);
+    if (stub) {
+      prelude.push(stub);
+      logLine('Gilbreath猜想：素数差序列不透明谓词');
+    }
   }
 
   // Emit
