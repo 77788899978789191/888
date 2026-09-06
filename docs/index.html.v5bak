@@ -3,462 +3,124 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>冈格尼尔 · GUNGNIR — Lua 混淆器 v6.0 · 200项终极强化版</title>
+<title>Gungnir - Lua 5.1 终极混淆器 v5.0.0 | 160+项技术</title>
 <style>
-  :root {
-    --bg: #050807;
-    --bg-panel: #0a0f0c;
-    --bg-input: #070b09;
-    --green: #00ff41;
-    --green-dim: #00b32d;
-    --green-dark: #0a3d1a;
-    --green-glow: rgba(0, 255, 65, 0.15);
-    --border: #1a3324;
-    --text: #c8f5d4;
-    --text-dim: #5a8a6a;
-    --red: #ff3355;
-    --yellow: #ffd60a;
-    --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', Consolas, monospace;
-  }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  html, body { height: 100%; }
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: var(--font-mono);
-    overflow-x: hidden;
-    position: relative;
-  }
-  /* ===== Matrix rain background ===== */
-  #matrixCanvas {
-    position: fixed; top: 0; left: 0;
-    width: 100%; height: 100%;
-    opacity: 0.06; z-index: 0;
-    pointer-events: none;
-  }
-  /* ===== Scanline overlay ===== */
-  body::after {
-    content: '';
-    position: fixed; top: 0; left: 0;
-    width: 100%; height: 100%;
-    background: repeating-linear-gradient(
-      0deg,
-      transparent 0px,
-      transparent 2px,
-      rgba(0, 0, 0, 0.08) 3px
-    );
-    pointer-events: none; z-index: 999;
-  }
-  .container {
-    position: relative; z-index: 1;
-    max-width: 1400px; margin: 0 auto;
-    padding: 20px;
-  }
-  /* ===== Header ===== */
-  header {
-    border: 1px solid var(--border);
-    background: linear-gradient(180deg, rgba(0,255,65,0.03), transparent);
-    padding: 24px 32px;
-    margin-bottom: 20px;
-    display: flex; align-items: center; justify-content: space-between;
-    flex-wrap: wrap; gap: 16px;
-  }
-  .logo-block { display: flex; align-items: center; gap: 20px; }
-  .logo {
-    font-size: 42px; font-weight: 800;
-    letter-spacing: 6px;
-    color: var(--green);
-    text-shadow: 0 0 20px var(--green-glow), 0 0 40px var(--green-glow);
-    animation: flicker 4s infinite;
-  }
-  @keyframes flicker {
-    0%, 91%, 94%, 100% { opacity: 1; }
-    92%, 93% { opacity: 0.4; }
-  }
-  .logo-sub {
-    font-size: 11px; color: var(--text-dim);
-    letter-spacing: 2px; text-transform: uppercase;
-  }
-  .ver-badge {
-    border: 1px solid var(--green-dim);
-    color: var(--green);
-    padding: 4px 12px; font-size: 12px;
-    background: var(--green-glow);
-  }
-  .status-bar {
-    display: flex; gap: 12px; flex-wrap: wrap;
-    font-size: 11px;
-  }
-  .status-item { color: var(--text-dim); }
-  .status-item b { color: var(--green); }
-  /* ===== Main grid ===== */
-  .main-grid {
-    display: grid;
-    grid-template-columns: 1fr 340px 1fr;
-    gap: 16px;
-    margin-bottom: 16px;
-  }
-  @media (max-width: 1100px) {
-    .main-grid { grid-template-columns: 1fr; }
-  }
-  @media (max-width: 640px) {
-    .container { padding: 10px; }
-    header { padding: 14px 16px; }
-    .logo { font-size: 26px; letter-spacing: 3px; }
-    .logo-sub { font-size: 9px; }
-    .status-bar { width: 100%; justify-content: flex-start; }
-    .status-item { font-size: 9px; padding: 3px 8px; }
-    .panel { min-height: 320px; }
-    .panel-header { flex-wrap: wrap; gap: 6px; }
-    .btn-upload { font-size: 12px; padding: 10px 16px; }
-    .btn-primary { font-size: 14px; padding: 14px; }
-    .btn-secondary { font-size: 12px; padding: 12px; }
-    .code-area, .output-area { font-size: 11px; }
-    .upload-hint { font-size: 8px; }
-  }
-  .panel {
-    border: 1px solid var(--border);
-    background: var(--bg-panel);
-    display: flex; flex-direction: column;
-    min-height: 480px;
-  }
-  .panel-header {
-    padding: 10px 16px;
-    border-bottom: 1px solid var(--border);
-    display: flex; justify-content: space-between; align-items: center;
-    background: rgba(0,255,65,0.02);
-    flex-shrink: 0;
-  }
-  .panel-title {
-    font-size: 12px; letter-spacing: 2px;
-    color: var(--green); text-transform: uppercase;
-  }
-  .panel-title::before { content: '▌ '; }
-  .panel-body { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
-  /* ===== Editor areas ===== */
-  .drop-zone {
-    flex: 1; position: relative;
-    display: flex; flex-direction: column;
-  }
-  .drop-zone.dragover::before {
-    content: '⟨⟨ DROP .LUA FILE ⟩⟩';
-    position: absolute; inset: 0;
-    display: flex; align-items: center; justify-content: center;
-    background: rgba(0,255,65,0.1);
-    border: 2px dashed var(--green);
-    color: var(--green); font-size: 18px; letter-spacing: 3px;
-    z-index: 10;
-  }
-  textarea.code-area {
-    flex: 1; width: 100%;
-    background: var(--bg-input);
-    color: var(--text);
-    border: none; outline: none; resize: none;
-    padding: 16px;
-    font-family: var(--font-mono);
-    font-size: 12.5px; line-height: 1.6;
-    tab-size: 4;
-    min-height: 380px;
-  }
-  textarea.code-area::placeholder { color: #2a4a36; }
-  textarea.code-area:focus { background: #081008; }
-  .output-area {
-    flex: 1; overflow: auto;
-    padding: 16px;
-    font-size: 12px; line-height: 1.55;
-    white-space: pre-wrap; word-break: break-all;
-    color: #9fe8b4;
-    background: var(--bg-input);
-    min-height: 380px;
-  }
-  .output-area .err { color: var(--red); }
-  /* ===== Control panel ===== */
-  .controls { padding: 16px; display: flex; flex-direction: column; gap: 18px; overflow-y: auto; }
-  .ctrl-group { display: flex; flex-direction: column; gap: 8px; }
-  .ctrl-label {
-    font-size: 11px; color: var(--text-dim);
-    text-transform: uppercase; letter-spacing: 1.5px;
-    display: flex; justify-content: space-between;
-  }
-  .ctrl-label b { color: var(--green); font-size: 14px; }
-  input[type=range] {
-    -webkit-appearance: none; appearance: none;
-    width: 100%; height: 4px;
-    background: linear-gradient(90deg, var(--green-dim), var(--green-dark));
-    outline: none;
-  }
-  input[type=range]::-webkit-slider-thumb {
-    -webkit-appearance: none; appearance: none;
-    width: 16px; height: 16px;
-    background: var(--green);
-    box-shadow: 0 0 10px var(--green-glow);
-    cursor: pointer;
-  }
-  .intensity-marks { display: flex; justify-content: space-between; font-size: 9px; color: #2a4a36; }
-  /* Module toggles */
-  .module-toggle {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 8px 10px;
-    border: 1px solid var(--border);
-    background: var(--bg-input);
-    cursor: pointer;
-    transition: all 0.15s;
-    user-select: none;
-  }
-  .module-toggle:hover { border-color: var(--green-dim); }
-  .module-toggle .mod-name { font-size: 11.5px; }
-  .module-toggle .mod-desc { font-size: 9px; color: var(--text-dim); margin-top: 2px; }
-  .toggle-indicator {
-    width: 34px; height: 16px;
-    border: 1px solid var(--border);
-    position: relative; flex-shrink: 0;
-    transition: all 0.2s;
-  }
-  .toggle-indicator::after {
-    content: '';
-    position: absolute; top: 2px; left: 2px;
-    width: 10px; height: 10px;
-    background: #333; transition: all 0.2s;
-  }
-  .module-toggle.active .toggle-indicator { border-color: var(--green-dim); }
-  .module-toggle.active .toggle-indicator::after {
-    left: 20px; background: var(--green);
-    box-shadow: 0 0 8px var(--green);
-  }
-  /* Buttons */
-  .btn {
-    border: 1px solid var(--green-dim);
-    background: var(--green-glow);
-    color: var(--green);
-    font-family: var(--font-mono);
-    font-size: 13px; letter-spacing: 2px; text-transform: uppercase;
-    padding: 14px 20px;
-    cursor: pointer;
-    transition: all 0.2s;
-    display: flex; align-items: center; justify-content: center; gap: 10px;
-  }
-  .btn:hover { background: rgba(0,255,65,0.25); box-shadow: 0 0 20px var(--green-glow); }
-  .btn:disabled { opacity: 0.3; cursor: not-allowed; }
-  .btn-primary { font-size: 15px; padding: 18px; font-weight: 700; }
-  .btn-secondary { font-size: 11px; padding: 10px 14px; }
-  .btn-upload {
-    font-size: 11px; padding: 8px 14px;
-    background: linear-gradient(135deg, rgba(0,255,65,0.18), rgba(0,179,45,0.08));
-    border-color: var(--green-dim);
-    color: var(--green);
-    font-weight: 700;
-    box-shadow: 0 0 12px rgba(0,255,65,0.12), inset 0 0 8px rgba(0,255,65,0.06);
-    letter-spacing: 1px;
-  }
-  .btn-upload:active { transform: scale(0.96); }
-  .upload-hint {
-    position: absolute; bottom: 8px; left: 0; right: 0;
-    text-align: center; pointer-events: none;
-    font-size: 9px; color: var(--text-dim); opacity: .7;
-    letter-spacing: .5px; padding: 0 12px;
-  }
-  .btn-row { display: flex; gap: 8px; }
-  .btn-row .btn { flex: 1; }
-  /* ===== Stats ===== */
-  .stats-panel {
-    border: 1px solid var(--border);
-    background: var(--bg-panel);
-    padding: 16px 20px;
-    margin-bottom: 16px;
-  }
-  .stats-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-    gap: 12px;
-  }
-  .stat-item {
-    border-left: 2px solid var(--green-dim);
-    padding-left: 12px;
-  }
-  .stat-value { font-size: 26px; font-weight: 700; color: var(--green); }
-  .stat-label { font-size: 10px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; }
-  /* ===== Terminal log ===== */
-  .terminal {
-    border: 1px solid var(--border);
-    background: #030504;
-    padding: 12px 16px;
-    font-size: 11px; line-height: 1.8;
-    max-height: 180px; overflow-y: auto;
-    margin-bottom: 16px;
-  }
-  .terminal .line { color: var(--text-dim); }
-  .terminal .line.ok { color: var(--green); }
-  .terminal .line.err { color: var(--red); }
-  .terminal .line.warn { color: var(--yellow); }
-  .terminal .line::before { content: '$ '; color: var(--green-dim); }
-  footer {
-    text-align: center; padding: 20px;
-    color: #2a4a36; font-size: 10px; letter-spacing: 1px;
-  }
-  /* Busy indicator */
-  .busy {
-    position: fixed; top: 0; left: 0; right: 0; height: 2px;
-    background: linear-gradient(90deg, transparent, var(--green), transparent);
-    animation: scan 1s linear infinite;
-    z-index: 1000; display: none;
-  }
-  .busy.active { display: block; }
-  @keyframes scan {
-    0% { transform: translateX(-100%); }
-    100% { transform: translateX(100%); }
-  }
-  /* seed input */
-  .seed-row { display: flex; gap: 8px; align-items: center; }
-  .seed-row input {
-    flex: 1; background: var(--bg-input);
-    border: 1px solid var(--border); color: var(--green);
-    font-family: var(--font-mono); font-size: 12px;
-    padding: 8px 10px; outline: none;
-  }
-  .seed-row input:focus { border-color: var(--green-dim); }
-  .seed-row button {
-    background: var(--bg-input); border: 1px solid var(--border);
-    color: var(--text-dim); cursor: pointer;
-    font-family: var(--font-mono); font-size: 11px;
-    padding: 8px 12px;
-  }
-  .seed-row button:hover { color: var(--green); border-color: var(--green-dim); }
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:#0a0e17;color:#e0e6ed;min-height:100vh}
+.header{background:linear-gradient(135deg,#0d1117 0%,#161b22 100%);border-bottom:1px solid #30363d;padding:12px 20px;display:flex;align-items:center;justify-content:space-between}
+.logo{font-size:22px;font-weight:700;background:linear-gradient(90deg,#58a6ff,#bc8cff);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.version{font-size:12px;color:#8b949e}
+.version span{color:#58a6ff;font-weight:600}
+.main{display:flex;height:calc(100vh - 52px)}
+.sidebar{width:300px;background:#0d1117;border-right:1px solid #30363d;overflow-y:auto;padding:12px;flex-shrink:0}
+.sidebar h3{font-size:13px;color:#8b949e;margin:12px 0 6px;text-transform:uppercase;letter-spacing:0.5px}
+.tech-group{margin-bottom:8px}
+.tech-group summary{cursor:pointer;font-size:12px;color:#c9d1d9;padding:4px 6px;background:#161b22;border-radius:4px;list-style:none;display:flex;justify-content:space-between;align-items:center}
+.tech-group summary::-webkit-details-marker{display:none}
+.tech-group summary:hover{background:#21262d}
+.tech-group summary .count{color:#58a6ff;font-size:11px}
+.tech-item{display:flex;align-items:center;padding:3px 6px 3px 20px;font-size:11px;color:#8b949e;cursor:pointer}
+.tech-item:hover{color:#c9d1d9;background:#161b22;border-radius:3px}
+.tech-item input{margin-right:6px;accent-color:#58a6ff}
+.tech-item.enabled{color:#3fb950}
+.content{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.toolbar{padding:10px 16px;background:#0d1117;border-bottom:1px solid #30363d;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.btn{padding:7px 16px;border:none;border-radius:6px;font-size:13px;cursor:pointer;font-weight:600;transition:all 0.2s}
+.btn-primary{background:linear-gradient(135deg,#238636,#2ea043);color:#fff}
+.btn-primary:hover{background:linear-gradient(135deg,#2ea043,#3fb950);transform:translateY(-1px)}
+.btn-primary:disabled{opacity:0.5;cursor:not-allowed;transform:none}
+.btn-secondary{background:#21262d;color:#c9d1d9;border:1px solid #30363d}
+.btn-secondary:hover{background:#30363d}
+select{background:#21262d;color:#c9d1d9;border:1px solid #30363d;border-radius:6px;padding:6px 10px;font-size:12px}
+.editors{flex:1;display:flex;overflow:hidden}
+.editor-panel{flex:1;display:flex;flex-direction:column;border-right:1px solid #30363d}
+.editor-panel:last-child{border-right:none}
+.editor-header{padding:6px 12px;background:#161b22;font-size:12px;color:#8b949e;display:flex;justify-content:space-between;align-items:center}
+.editor-header .stats{color:#58a6ff;font-size:11px}
+textarea{flex:1;background:#0d1117;color:#c9d1d9;border:none;padding:12px;font-family:'Consolas','Monaco',monospace;font-size:12px;line-height:1.6;resize:none;outline:none;tab-size:2}
+textarea:focus{background:#0a0e17}
+.log-panel{height:180px;background:#0d1117;border-top:1px solid #30363d;display:flex;flex-direction:column}
+.log-header{padding:6px 12px;background:#161b22;font-size:12px;color:#8b949e;display:flex;justify-content:space-between;align-items:center}
+.log-content{flex:1;overflow-y:auto;padding:8px 12px;font-family:'Consolas',monospace;font-size:11px;line-height:1.5}
+.log-line{margin:1px 0}
+.log-info{color:#58a6ff}
+.log-success{color:#3fb950}
+.log-warn{color:#d29922}
+.log-error{color:#f85149}
+.log-tech{color:#bc8cff}
+.progress-bar{height:4px;background:#21262d;overflow:hidden}
+.progress-fill{height:100%;background:linear-gradient(90deg,#58a6ff,#bc8cff,#3fb950);transition:width 0.3s;width:0%}
+.modal{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:1000;align-items:center;justify-content:center}
+.modal.active{display:flex}
+.modal-content{background:#0d1117;border:1px solid #30363d;border-radius:12px;padding:24px;max-width:600px;width:90%;max-height:80vh;overflow-y:auto}
+.modal-content h2{color:#58a6ff;margin-bottom:16px;font-size:18px}
+.modal-content pre{background:#161b22;padding:12px;border-radius:6px;font-size:11px;overflow-x:auto;white-space:pre-wrap;word-break:break-all}
+.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}
+.stat-card{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:10px;text-align:center}
+.stat-card .value{font-size:20px;font-weight:700;color:#58a6ff}
+.stat-card .label{font-size:10px;color:#8b949e;margin-top:2px}
+.close-modal{float:right;background:none;border:none;color:#8b949e;font-size:20px;cursor:pointer}
+.close-modal:hover{color:#f85149}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:#0d1117}
+::-webkit-scrollbar-thumb{background:#30363d;border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:#484f58}
 </style>
 </head>
-
-<canvas id="matrixCanvas"></canvas>
-<div class="busy" id="busyBar"></div>
-<div class="container">
-
-  <header>
-    <div class="logo-block">
-      <div>
-        <div class="logo">冈格尼尔 <span style="font-size:.6em;letter-spacing:.2em">GUNGNIR</span></div>
-        <div class="logo-sub">// 个人专用防御框架 — Lua 5.1 极致混淆引擎</div>
+<body>
+<div class="header">
+  <div class="logo">⚔️ GUNGIR</div>
+  <div class="version">v<span id="verNum">5.0.0</span> | <span id="techCount">160</span>+ 项混淆技术 | Lua 5.1 / Delta Executor</div>
+</div>
+<div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+<div class="main">
+  <div class="sidebar">
+    <h3>混淆技术面板</h3>
+    <div id="techPanel"></div>
+    <h3>快速操作</h3>
+    <button class="btn btn-secondary" style="width:100%;margin-bottom:6px" onclick="selectAll(true)">全选技术</button>
+    <button class="btn btn-secondary" style="width:100%;margin-bottom:6px" onclick="selectAll(false)">全不选</button>
+    <button class="btn btn-secondary" style="width:100%" onclick="selectPreset('max')">最大强度预设</button>
+  </div>
+  <div class="content">
+    <div class="toolbar">
+      <button class="btn btn-primary" id="obfuscateBtn" onclick="runObfuscation()">🚀 开始混淆</button>
+      <button class="btn btn-secondary" onclick="loadSample()">📋 加载示例</button>
+      <button class="btn btn-secondary" onclick="downloadOutput()">💾 下载输出</button>
+      <button class="btn btn-secondary" onclick="copyOutput()">📋 复制输出</button>
+      <button class="btn btn-secondary" onclick="showReport()">📊 验证报告</button>
+      <select id="intensitySelect">
+        <option value="1">强度 1 - 基础</option>
+        <option value="3">强度 3 - 中等</option>
+        <option value="5">强度 5 - 高级</option>
+        <option value="8">强度 8 - 极限</option>
+        <option value="10" selected>强度 10 - 理论极限</option>
+      </select>
+      <label style="font-size:12px;color:#8b949e"><input type="checkbox" id="autoVerify" checked> 自动验证</label>
+    </div>
+    <div class="editors">
+      <div class="editor-panel">
+        <div class="editor-header"><span>📝 输入 Lua 源码</span><span class="stats" id="inputStats">0 字节</span></div>
+        <textarea id="inputCode" placeholder="在此粘贴 Lua 5.1 源码..." spellcheck="false"></textarea>
+      </div>
+      <div class="editor-panel">
+        <div class="editor-header"><span>🔒 混淆输出</span><span class="stats" id="outputStats">等待混淆...</span></div>
+        <textarea id="outputCode" readonly placeholder="混淆结果将显示在这里..." spellcheck="false"></textarea>
       </div>
     </div>
-    <div class="status-bar">
-      <span class="status-item">引擎 <b>网页版 v3.0</b></span>
-      <span class="status-item">目标 <b>LUA 5.1</b></span>
-      <span class="status-item">模块 <b id="moduleCount">4</b></span>
-      <span class="ver-badge">稳定</span>
-    </div>
-  </header>
-
-  <div class="main-grid">
-    <!-- Input -->
-    <div class="panel">
-      <div class="panel-header">
-        <span class="panel-title">源码输入</span>
-        <div style="display:flex;align-items:center;gap:8px">
-          <span style="font-size:10px;color:var(--text-dim)" id="inputMeta">0 字节</span>
-          <button class="btn btn-upload" id="uploadBtn" title="从设备文件管理器选择 .lua 文件">📁 上传文件</button>
-        </div>
-      </div>
-      <input type="file" id="fileInput" hidden
-        accept=".lua,.luau,.txt,text/plain,application/octet-stream">
-      <div class="panel-body">
-        <div class="drop-zone" id="dropZone">
-          <textarea class="code-area" id="inputCode" spellcheck="false"
-            placeholder="-- 在此粘贴 Lua 源码，或点击「上传文件」从手机文件管理器选择
--- ─────────────────────────────────────
--- local function greet(name)
---     print(&quot;你好, &quot; .. name)
--- end
--- greet(&quot;世界&quot;)"></textarea>
-          <div class="upload-hint">📱 支持 iOS「文件」App / 安卓系统文件管理器 · 也可以拖拽文件到此处</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Controls -->
-    <div class="panel">
-      <div class="panel-header">
-        <span class="panel-title">混淆配置</span>
-      </div>
-      <div class="controls">
-        <div class="ctrl-group">
-          <div class="ctrl-label"><span>混淆强度</span><b id="intensityVal">7</b></div>
-          <input type="range" id="intensitySlider" min="1" max="10" value="7">
-          <div class="intensity-marks">
-            <span>1</span><span>3</span><span>5</span><span>7</span><span>9</span><span>10</span>
-          </div>
-        </div>
-
-        <div class="ctrl-group">
-          <div class="ctrl-label"><span>随机种子</span></div>
-          <div class="seed-row">
-            <input type="text" id="seedInput" value="1337">
-            <button id="seedRandom" title="随机种子">随机</button>
-          </div>
-        </div>
-
-        <div class="ctrl-group">
-          <div class="ctrl-label"><span>混淆模块</span></div>
-          <div class="module-toggle active" data-module="rename">
-            <div><div class="mod-name">标识符重命名</div><div class="mod-desc">局部符号 → V0x… 混沌命名</div></div>
-            <div class="toggle-indicator"></div>
-          </div>
-          <div class="module-toggle active" data-module="strings">
-            <div><div class="mod-name">字符串加密</div><div class="mod-desc">XOR 加密池 + 惰性解密桩（Lua 5.1）</div></div>
-            <div class="toggle-indicator"></div>
-          </div>
-          <div class="module-toggle active" data-module="constants">
-            <div><div class="mod-name">常量混淆</div><div class="mod-desc">整数 → 等价数学表达式</div></div>
-            <div class="toggle-indicator"></div>
-          </div>
-          <div class="module-toggle active" data-module="expressions">
-            <div><div class="mod-name">表达式分解</div><div class="mod-desc">字面算术 → 深层嵌套树</div></div>
-            <div class="toggle-indicator"></div>
-          </div>
-        </div>
-
-        <button class="btn btn-primary" id="obfuscateBtn">⚔ 开始混淆</button>
-
-        <div class="btn-row">
-          <button class="btn btn-secondary" id="loadSample">载入示例</button>
-          <button class="btn btn-secondary" id="clearBtn">清空</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Output -->
-    <div class="panel">
-      <div class="panel-header">
-        <span class="panel-title">混淆输出</span>
-        <button class="btn btn-secondary" id="downloadBtn" style="padding:6px 14px;font-size:10px" disabled>⬇ 下载</button>
-      </div>
-      <div class="panel-body">
-        <div class="output-area" id="outputArea">
-<span style="color:#2a4a36">-- 等待输出…
--- 在左侧配置模块后，点击「开始混淆」</span>
-        </div>
-      </div>
+    <div class="log-panel">
+      <div class="log-header"><span>📋 执行日志</span><span id="logCount">0 条</span></div>
+      <div class="log-content" id="logContent"></div>
     </div>
   </div>
+</div>
 
-  <!-- Stats -->
-  <div class="stats-panel">
-    <div class="stats-grid">
-      <div class="stat-item"><div class="stat-value" id="statSize">—</div><div class="stat-label">输出体积</div></div>
-      <div class="stat-item"><div class="stat-value" id="statRatio">—</div><div class="stat-label">膨胀倍率</div></div>
-      <div class="stat-item"><div class="stat-value" id="statStrings">0</div><div class="stat-label">加密字符串</div></div>
-      <div class="stat-item"><div class="stat-value" id="statConsts">0</div><div class="stat-label">混淆常量</div></div>
-      <div class="stat-item"><div class="stat-value" id="statRenames">0</div><div class="stat-label">重命名标识符</div></div>
-      <div class="stat-item"><div class="stat-value" id="statExprs">0</div><div class="stat-label">分解表达式</div></div>
-    </div>
+<div class="modal" id="reportModal">
+  <div class="modal-content">
+    <button class="close-modal" onclick="closeReport()">&times;</button>
+    <h2>📊 Gungnir 验证报告</h2>
+    <div id="reportBody"></div>
   </div>
-
-  <!-- Terminal -->
-  <div class="terminal" id="terminalLog">
-    <div class="line ok">冈格尼尔网页引擎 v3.0 初始化完成</div>
-    <div class="line">目标 Lua 5.1 — 纯算术 bxor 桩（无位运算符）</div>
-    <div class="line">等待输入…</div>
-  </div>
-
-  <footer>
-    冈格尼尔计划 // 个人专用防御性混淆框架 // 命令行版（12 模块）&gt; 网页版（4 模块）
-  </footer>
 </div>
 
 <script>
@@ -1884,52 +1546,72 @@ class Verifier{
 }
 
 // ============================================================
-// UI LOGIC - Original Matrix Green Style
+// UI LOGIC
 // ============================================================
+const TECH_GROUPS=[
+  {name:'第一编：多态虚拟机引擎',prefix:'VM',count:22},
+  {name:'第二编：炼狱级控制流混淆',prefix:'CF',count:20},
+  {name:'第三编：量子级数据与常量混淆',prefix:'DC',count:18},
+  {name:'第四编：多维作用域与符号撕裂',prefix:'SC',count:11},
+  {name:'第五编：反自动化分析护盾',prefix:'AA',count:8},
+  {name:'第六编：硬核运行时反制',prefix:'RT',count:12},
+  {name:'第七编：平台专属(Delta)',prefix:'PL',count:8},
+  {name:'第八编：交付与工程',prefix:'DE',count:9},
+  {name:'第九编：终极强化技术',prefix:'TT',count:28},
+  {name:'第十编：前沿突破技术',prefix:'TT-29+',count:22},
+];
+let logLines=0;
 let lastReport=null;
-let currentOutput='';
-
-// Matrix rain background
-(function(){
-  const canvas=document.getElementById('matrixCanvas');
-  if(!canvas)return;
-  const ctx=canvas.getContext('2d');
-  canvas.width=window.innerWidth;
-  canvas.height=window.innerHeight;
-  const chars='GUNGNIR01アイウエオカキクケコサシスセソタチツテトナニヌネノ';
-  const fontSize=14;
-  const columns=Math.floor(canvas.width/fontSize);
-  const drops=Array(columns).fill(1);
-  function draw(){
-    ctx.fillStyle='rgba(5,8,7,0.05)';
-    ctx.fillRect(0,0,canvas.width,canvas.height);
-    ctx.fillStyle='#00ff41';
-    ctx.font=fontSize+'px monospace';
-    for(let i=0;i<drops.length;i++){
-      const text=chars[Math.floor(Math.random()*chars.length)];
-      ctx.fillText(text,i*fontSize,drops[i]*fontSize);
-      if(drops[i]*fontSize>canvas.height&&Math.random()>0.975)drops[i]=0;
-      drops[i]++;
-    }
-  }
-  setInterval(draw,50);
-  window.addEventListener('resize',()=>{canvas.width=window.innerWidth;canvas.height=window.innerHeight;});
-})();
 
 function log(msg,type='info'){
-  const el=document.getElementById('terminalLog');
+  const el=document.getElementById('logContent');
   const div=document.createElement('div');
-  div.className='line '+type;
-  const time=new Date().toLocaleTimeString();
-  div.textContent='['+time+'] '+msg;
+  div.className='log-line log-'+type;
+  div.textContent='['+new Date().toLocaleTimeString()+'] '+msg;
   el.appendChild(div);
   el.scrollTop=el.scrollHeight;
-  while(el.children.length>100)el.removeChild(el.firstChild);
+  logLines++;
+  document.getElementById('logCount').textContent=logLines+' 条';
 }
 
-function updateInputMeta(){
-  const code=document.getElementById('inputCode').value;
-  document.getElementById('inputMeta').textContent=code.length+' 字节';
+function buildTechPanel(){
+  const panel=document.getElementById('techPanel');
+  panel.innerHTML='';
+  for(const group of TECH_GROUPS){
+    const det=document.createElement('details');
+    det.className='tech-group';
+    det.open=false;
+    const techs=TECHNIQUES.filter(t=>{
+      if(group.prefix==='TT-29+')return t.id.startsWith('TT-')&&parseInt(t.id.split('-')[1])>=29;
+      return t.id.startsWith(group.prefix+'-');
+    });
+    det.innerHTML='<summary>'+group.name+' <span class="count">'+techs.length+'项</span></summary>';
+    for(const tech of techs){
+      const label=document.createElement('label');
+      label.className='tech-item enabled';
+      label.innerHTML='<input type="checkbox" checked value="'+tech.id+'"> '+tech.id+' '+tech.name;
+      label.querySelector('input').addEventListener('change',function(){
+        label.classList.toggle('enabled',this.checked);
+      });
+      det.appendChild(label);
+    }
+    panel.appendChild(det);
+  }
+}
+
+function getEnabledTechs(){
+  return Array.from(document.querySelectorAll('#techPanel input:checked')).map(i=>i.value);
+}
+
+function selectAll(val){
+  document.querySelectorAll('#techPanel input').forEach(i=>{
+    i.checked=val;
+    i.closest('.tech-item').classList.toggle('enabled',val);
+  });
+}
+
+function selectPreset(mode){
+  if(mode==='max') selectAll(true);
 }
 
 function loadSample(){
@@ -1946,45 +1628,23 @@ local function factorial(n)
 end
 local x = 10
 local y = 20
-print("Results:", add(x,y), mul(x,y), factorial(5))
+local result1 = add(x, y)
+local result2 = mul(x, y)
+local result3 = factorial(5)
+print("Results:", result1, result2, result3)
 for i = 1, 10 do
   print("Loop:", i)
 end`;
-  updateInputMeta();
+  updateInputStats();
 }
 
-function clearInput(){
-  document.getElementById('inputCode').value='';
-  updateInputMeta();
+function updateInputStats(){
+  const code=document.getElementById('inputCode').value;
+  document.getElementById('inputStats').textContent=code.length+' 字节 / '+code.split('\n').length+' 行';
 }
 
-function randomSeed(){
-  document.getElementById('seedInput').value=Math.floor(Math.random()*999999);
-}
-
-// Module toggles - map to technique groups
-const moduleMap={
-  rename:['SC'],
-  strings:['DC'],
-  constants:['DC','VM'],
-  expressions:['CF','VM']
-};
-let activeModules={rename:true,strings:true,constants:true,expressions:true};
-
-function getEnabledTechs(){
-  // All 200 techniques enabled by default, filtered by active modules
-  const prefixes=new Set();
-  for(const mod in activeModules){
-    if(activeModules[mod]){
-      moduleMap[mod].forEach(p=>prefixes.add(p));
-    }
-  }
-  // Always enable VM, CF, AA, RT, PL, DE, TT for full strength
-  ['VM','CF','AA','RT','PL','DE','TT','SC','DC'].forEach(p=>prefixes.add(p));
-  return TECHNIQUES.filter(t=>{
-    const prefix=t.id.split('-')[0];
-    return prefixes.has(prefix);
-  }).map(t=>t.id);
+function updateProgress(pct){
+  document.getElementById('progressFill').style.width=pct+'%';
 }
 
 async function runObfuscation(){
@@ -1992,130 +1652,105 @@ async function runObfuscation(){
   if(!input.trim()){ log('错误：请先输入 Lua 源码','error'); return; }
   const btn=document.getElementById('obfuscateBtn');
   btn.disabled=true; btn.textContent='混淆中...';
-  document.getElementById('busyBar').classList.add('active');
   log('开始混淆处理...','info');
+  updateProgress(10);
   try{
+    // Parse
     const lexer=new Lexer(input);
     const tokens=lexer.tok();
-    log('词法分析完成：'+tokens.length+' 个token','ok');
+    log('词法分析完成：'+tokens.length+' 个token','success');
+    updateProgress(20);
     const parser=new Parser(tokens);
     const ast=parser.chunk();
-    log('语法分析完成：AST构建成功','ok');
+    log('语法分析完成：AST构建成功','success');
+    updateProgress(30);
+    // Obfuscate
     const enabled=getEnabledTechs();
-    log('启用技术：'+enabled.length+' / '+TECHNIQUES.length+' 项','ok');
-    document.getElementById('moduleCount').textContent=enabled.length;
-    const intensity=parseInt(document.getElementById('intensitySlider').value);
-    document.getElementById('intensityVal').textContent=intensity;
-    const seed=parseInt(document.getElementById('seedInput').value)||Date.now();
-    const orch=new Orchestrator({intensity,seed});
+    log('启用技术：'+enabled.length+' / '+TECHNIQUES.length+' 项','tech');
+    const orch=new Orchestrator({intensity:parseInt(document.getElementById('intensitySelect').value),seed:Date.now()});
     orch.setEnabled(enabled);
     orch.stats.enabledCount=enabled.length;
     const obfuscatedAst=orch.obfuscate(ast);
-    log('混淆变换完成','ok');
+    log('混淆变换完成','success');
+    updateProgress(70);
+    // Generate
     const writer=new Writer();
     const output=writer.write(obfuscatedAst);
-    currentOutput=output;
-    log('代码生成完成：'+output.length+' 字节','ok');
+    log('代码生成完成：'+output.length+' 字节','success');
+    updateProgress(85);
     // Verify
-    const verifier=new Verifier();
-    const result=verifier.verify(output,orch.stats);
-    lastReport=result;
-    if(result.syntax.pass) log('语法验证：通过 (Lua 5.1)','ok');
-    else log('语法验证：失败 - '+result.syntax.msg,'err');
-    log('强度评分：'+result.strength+'/100',result.strength>=70?'ok':'');
-    // Update stats
-    document.getElementById('statSize').textContent=output.length;
-    document.getElementById('statRatio').textContent=(output.length/input.length).toFixed(1)+'x';
-    document.getElementById('statStrings').textContent=result.features.stringEncryption?'是':'否';
-    document.getElementById('statConsts').textContent=result.features.mbaExpressions;
-    document.getElementById('statRenames').textContent=result.features.metatables;
-    document.getElementById('statExprs').textContent=result.features.coroutines;
-    // Output
-    const outEl=document.getElementById('outputArea');
-    outEl.innerHTML='';
-    const pre=document.createElement('pre');
-    pre.style.whiteSpace='pre-wrap';
-    pre.style.wordBreak='break-all';
-    pre.textContent=output;
-    outEl.appendChild(pre);
-    document.getElementById('downloadBtn').disabled=false;
-    log('混淆完成！','ok');
+    if(document.getElementById('autoVerify').checked){
+      const verifier=new Verifier();
+      const result=verifier.verify(output,orch.stats);
+      lastReport=result;
+      if(result.syntax.pass) log('语法验证：通过 (Lua 5.1)','success');
+      else log('语法验证：失败 - '+result.syntax.msg,'error');
+      log('强度评分：'+result.strength+'/100',result.strength>=70?'success':'warn');
+      log('特征检测：VM='+result.features.vmLoop+' 状态机='+result.features.stateMachine+' 元表='+result.features.metatables+' 协程='+result.features.coroutines,'info');
+    }
+    updateProgress(100);
+    document.getElementById('outputCode').value=output;
+    document.getElementById('outputStats').textContent=output.length+' 字节 / '+output.split('\n').length+' 行';
+    log('混淆完成！','success');
   }catch(e){
-    log('错误：'+e.message,'err');
+    log('错误：'+e.message,'error');
     console.error(e);
   }
-  btn.disabled=false; btn.textContent='▶ 开始混淆';
-  document.getElementById('busyBar').classList.remove('active');
+  btn.disabled=false; btn.textContent='🚀 开始混淆';
+  setTimeout(()=>updateProgress(0),1000);
 }
 
 function downloadOutput(){
-  if(!currentOutput){ log('没有可下载的输出',''); return; }
-  const blob=new Blob([currentOutput],{type:'text/plain'});
+  const output=document.getElementById('outputCode').value;
+  if(!output){ log('没有可下载的输出','warn'); return; }
+  const blob=new Blob([output],{type:'text/plain'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
   a.download='gungnir_obfuscated_'+Date.now()+'.lua';
   a.click();
-  log('输出已下载','ok');
+  log('输出已下载','success');
 }
 
-// Init - wait for full DOM load
-window.addEventListener('load',function(){
-  // Module toggles
-  document.querySelectorAll('.module-toggle').forEach(toggle=>{
-    toggle.addEventListener('click',()=>{
-      const mod=toggle.dataset.module;
-      activeModules[mod]=!activeModules[mod];
-      toggle.classList.toggle('active',activeModules[mod]);
-    });
-  });
-  // File upload
-  document.getElementById('uploadBtn').addEventListener('click',()=>{
-    document.getElementById('fileInput').click();
-  });
-  document.getElementById('fileInput').addEventListener('change',(e)=>{
-    const file=e.target.files[0];
-    if(!file)return;
-    const reader=new FileReader();
-    reader.onload=(ev)=>{
-      document.getElementById('inputCode').value=ev.target.result;
-      updateInputMeta();
-      log('已加载文件：'+file.name,'ok');
-    };
-    reader.readAsText(file);
-  });
-  // Drag and drop
-  const dropZone=document.getElementById('dropZone');
-  dropZone.addEventListener('dragover',(e)=>{e.preventDefault();dropZone.classList.add('dragover');});
-  dropZone.addEventListener('dragleave',()=>dropZone.classList.remove('dragover'));
-  dropZone.addEventListener('drop',(e)=>{
-    e.preventDefault();
-    dropZone.classList.remove('dragover');
-    const file=e.dataTransfer.files[0];
-    if(!file)return;
-    const reader=new FileReader();
-    reader.onload=(ev)=>{
-      document.getElementById('inputCode').value=ev.target.result;
-      updateInputMeta();
-      log('已拖放文件：'+file.name,'ok');
-    };
-    reader.readAsText(file);
-  });
-  // Intensity slider
-  document.getElementById('intensitySlider').addEventListener('input',function(){
-    document.getElementById('intensityVal').textContent=this.value;
-  });
-  // Main buttons
-  document.getElementById('inputCode').addEventListener('input',updateInputMeta);
-  document.getElementById('obfuscateBtn').addEventListener('click',runObfuscation);
-  document.getElementById('loadSample').addEventListener('click',loadSample);
-  document.getElementById('clearBtn').addEventListener('click',clearInput);
-  document.getElementById('seedRandom').addEventListener('click',randomSeed);
-  document.getElementById('downloadBtn').addEventListener('click',downloadOutput);
-  document.getElementById('moduleCount').textContent=TECHNIQUES.length;
-  log('Gungnir Web v6.0 初始化完成，共 '+TECHNIQUES.length+' 项混淆技术','ok');
-  log('引擎：Lua 5.1 自研解析器 · 无位运算符 · Delta Executor 兼容','ok');
-  log('提示：点击"加载示例"可快速测试','');
-});
+function copyOutput(){
+  const output=document.getElementById('outputCode').value;
+  if(!output){ log('没有可复制的输出','warn'); return; }
+  navigator.clipboard.writeText(output).then(()=>log('已复制到剪贴板','success'));
+}
+
+function showReport(){
+  if(!lastReport){ log('请先运行混淆以生成报告','warn'); return; }
+  const r=lastReport;
+  document.getElementById('reportBody').innerHTML=`
+    <div class="stats-grid">
+      <div class="stat-card"><div class="value">${r.overall?'✅':'❌'}</div><div class="label">总体状态</div></div>
+      <div class="stat-card"><div class="value">${r.strength}</div><div class="label">强度评分/100</div></div>
+      <div class="stat-card"><div class="value">${r.coverage.enabled}</div><div class="label">启用技术</div></div>
+      <div class="stat-card"><div class="value">${r.coverage.total}</div><div class="label">总技术数</div></div>
+    </div>
+    <h3 style="color:#58a6ff;margin:12px 0 6px">语法验证</h3>
+    <p style="font-size:13px;color:${r.syntax.pass?'#3fb950':'#f85149'}">${r.syntax.pass?'✅ 通过':'❌ '+r.syntax.msg}</p>
+    <h3 style="color:#58a6ff;margin:12px 0 6px">特征检测</h3>
+    <pre style="font-size:11px">VM解释器循环: ${r.features.vmLoop?'是':'否'}
+状态机: ${r.features.stateMachine?'是':'否'}
+元表使用: ${r.features.metatables} 处
+协程使用: ${r.features.coroutines} 处
+反调试: ${r.features.antiDebug} 处
+不透明谓词: ${r.features.opaquePredicates} 处
+MBA表达式: ${r.features.mbaExpressions} 处
+字符串加密: ${r.features.stringEncryption?'是':'否'}
+pcall包装: ${r.features.pcallWrapping} 处</pre>
+  `;
+  document.getElementById('reportModal').classList.add('active');
+}
+
+function closeReport(){ document.getElementById('reportModal').classList.remove('active'); }
+
+// Init
+document.getElementById('inputCode').addEventListener('input',updateInputStats);
+buildTechPanel();
+document.getElementById('techCount').textContent=TECHNIQUES.length;
+log('Gungnir Web v5.0.0 初始化完成，共 '+TECHNIQUES.length+' 项混淆技术','success');
+log('提示：点击"加载示例"可快速测试','info');
 </script>
 </body>
 </html>
