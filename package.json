@@ -9,7 +9,9 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "start": "node dist/cli.js"
+    "start": "node dist/cli.js",
+    "test": "node dist/test/test_150.js",
+    "test:web": "node dist/test/web_engine_regression.js"
   },
   "dependencies": {
     "commander": "^15.0.0",
