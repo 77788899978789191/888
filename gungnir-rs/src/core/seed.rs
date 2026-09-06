@@ -121,6 +121,28 @@ impl BuildSeed {
         hex::encode(&self.fingerprint)
     }
 
+    /// 派生RNG种子（32字节）
+    pub fn derive_rng_seed(&self) -> [u8; 32] {
+        let mut hasher = Sha256::new();
+        hasher.update(b"rng_seed");
+        hasher.update(&self.raw);
+        let result = hasher.finalize();
+        let mut seed = [0u8; 32];
+        seed.copy_from_slice(&result);
+        seed
+    }
+
+    /// 派生子种子（32字节），用于不同子系统
+    pub fn derive_subseed(&self, domain: &[u8]) -> [u8; 32] {
+        let mut hasher = Sha256::new();
+        hasher.update(domain);
+        hasher.update(&self.raw);
+        let result = hasher.finalize();
+        let mut seed = [0u8; 32];
+        seed.copy_from_slice(&result);
+        seed
+    }
+
     /// 从16个片段重组种子并校验
     pub fn reassemble_and_verify(&self) -> bool {
         let mut reassembled = Vec::with_capacity(256);
