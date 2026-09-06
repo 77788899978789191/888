@@ -1,0 +1,60 @@
+[package]
+name = "gungnir"
+version = "6.0.0"
+edition = "2021"
+description = "Gungnir - Ultimate Lua 5.1 Obfuscator (200+ techniques)"
+license = "MIT"
+repository = "https://github.com/77788899978789191/888"
+
+[lib]
+name = "gungnir"
+crate-type = ["rlib", "staticlib"]
+path = "src/lib.rs"
+
+[[bin]]
+name = "gungnir-cli"
+path = "cli/main.rs"
+
+[dependencies]
+# Core - no proc-macro derives for sandbox compatibility
+serde = { version = "=1.0.197", features = ["alloc"], default-features = false }
+serde_json = "=1.0.114"
+rand = "=0.8.5"
+rand_chacha = "=0.3.1"
+sha2 = "=0.10.8"
+hex = "=0.4.3"
+base64 = "=0.21.7"
+regex = "=1.10.3"
+lazy_static = "=1.4.0"
+parking_lot = "=0.12.1"
+
+# Parallel processing
+rayon = "=1.8.1"
+
+# Error handling
+anyhow = "=1.0.79"
+
+# Logging
+log = "=0.4.20"
+env_logger = "=0.10.2"
+
+# CLI - use builder pattern instead of derive
+clap = { version = "=4.4.18", features = ["std", "help", "usage", "error-context", "suggestions"], default-features = false }
+
+# WASM
+wasm-bindgen = { version = "=0.2.91", optional = true }
+web-sys = { version = "=0.3.68", optional = true, features = ["console"] }
+
+[features]
+default = []
+wasm = ["wasm-bindgen", "web-sys"]
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+
+[profile.dev]
+opt-level = 1
