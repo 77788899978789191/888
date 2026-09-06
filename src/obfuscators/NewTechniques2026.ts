@@ -640,7 +640,7 @@ export class KrakVMPerBytecodePlugin implements ObfuscationPlugin {
     const rng = ctx.rng;
     const code = `-- TT-192: KrakVM per-bytecode encryption
 local _krakvm_iv192 = ${rng.int(0, 0xFFFFFFFF)}
-local function _krakvm_decrypt192(byte, iv) return byte ~ iv end
+local function _krakvm_decrypt192(byte, iv) return (byte + iv) % 256 end
 `;
     if (!ctx.ast.body) ctx.ast.body = [];
     ctx.ast.body.unshift(raw(code));

@@ -1,6 +1,7 @@
 {
-  "version": "1.0.702",
-  "buildDate": "2026-09-06T02:51:39.064Z",
-  "timestamp": 1788663099064,
-  "commit": "4f0791e"
+  "version": "6.0.0",
+  "buildDate": "2026-09-06T03:00:00.000Z",
+  "timestamp": 1788663600000,
+  "techniques": 200,
+  "commit": "pending"
 }
