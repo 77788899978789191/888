@@ -138,7 +138,7 @@ pcall(function()
   elseif platform:find("iOS") or platform:find("Windows") then
     local _heavy_var = ((${ctx.rng.int(1, 100)} ^ 2) + ${ctx.rng.int(1, 100)}) % 997
     local _heavy_chain = _heavy_var * 3 + 7
-    _heavy_chain = (_heavy_chain ~ 0xAA) % 256
+    _heavy_chain = _bxor(_heavy_chain, 0xAA) % 256
   else
     -- Unknown platform: default branch
     local _default_var = ${ctx.rng.int(1, 100)}
@@ -194,7 +194,7 @@ local function __gungnir_load_page(page_id)
   -- Decrypt page (XOR with page-specific key)
   local key = (page_id * 1103515245 + 12345) % 65536
   for i = 1, #page do
-    page[i] = page[i] ~ (key % 256)
+    page[i] = _bxor(page[i], key % 256)
   end
   return page
 end
@@ -232,14 +232,14 @@ local function __gungnir_encrypt_remote(...)
   local key1 = ${ctx.rng.int(1, 65535)}
   local layer1 = ""
   for i = 1, #serialized do
-    layer1 = layer1 .. string.char(string.byte(serialized, i) ~ (key1 % 256))
+    layer1 = layer1 .. string.char(_bxor(string.byte(serialized, i), key1 % 256))
     key1 = (key1 * 1103515245 + 12345) % 65536
   end
   -- Layer 2: Bit reversal + shift
   local layer2 = ""
   for i = 1, #layer1 do
     local b = string.byte(layer1, i)
-    b = ((b & 0xF0) >> 4) | ((b & 0x0F) << 4)  -- nibble swap
+    b = _bor(_rshift(_band(b, 0xF0), 4), _lshift(_band(b, 0x0F), 4))  -- nibble swap
     b = (b + ${ctx.rng.int(1, 255)}) % 256
     layer2 = layer2 .. string.char(b)
   end
@@ -250,8 +250,8 @@ local function __gungnir_encrypt_remote(...)
     local b1 = string.byte(layer2, i) or 0
     local b2 = string.byte(layer2, i + 1) or 0
     local b3 = string.byte(layer2, i + 2) or 0
-    layer3 = layer3 .. b64:sub((b1 >> 2) + 1, (b1 >> 2) + 1)
-    layer3 = layer3 .. b64:sub(((b1 & 3) << 4 | (b2 >> 4)) + 1, ((b1 & 3) << 4 | (b2 >> 4)) + 1)
+    layer3 = layer3 .. b64:sub(_rshift(b1, 2) + 1, _rshift(b1, 2) + 1)
+    layer3 = layer3 .. b64:sub(_bor(_lshift(_band(b1, 3), 4), _rshift(b2, 4)) + 1, _bor(_lshift(_band(b1, 3), 4), _rshift(b2, 4)) + 1)
   end
   return layer3
 end

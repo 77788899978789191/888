@@ -1,5 +1,5 @@
 /**
- * Project: Gungnir - Control Flow Advanced Techniques (CF-19 ~ CF-20)
+ * Project: Gungnir - Control Flow Advanced Techniques (CF-_bxor(19, CF)-20)
  *
  * CF-19: Control Flow Scrambling
  * CF-20: Loop Unrolling & Fusion

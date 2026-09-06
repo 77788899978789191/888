@@ -10,7 +10,7 @@
  *   Layer 6: Hardcore Runtime Countermeasures (RT-01 ~ RT-12, 12 items)
  *   Layer 7: Platform-Specific (Delta)     (PL-01 ~ PL-08,  8 items)
  *   Layer 8: Delivery & Engineering         (DE-01 ~ DE-06,  6 items)
- *   Total: 98 techniques
+ *   Total: 150 techniques (98 base + 28 ultimate + 14 frontier + 10 correction)
  *
  * Plugins execute in layer order (1 → 8), with randomized order within
  * each layer (DE-02: Multi-Strategy Orchestration Pipeline).
@@ -63,6 +63,18 @@ import { DeliveryEngineeringPlugin } from '../obfuscators/DeliveryEngineering';
 import { DataDeliveryEnhancedPlugin } from '../obfuscators/DataDeliveryEnhanced';
 import { UltimateTechniquesPlugin } from '../obfuscators/UltimateTechniques';
 import { AdvancedTechniquesPlugin } from '../obfuscators/AdvancedTechniques';
+import {
+  CFGRandomRewiringPlugin, VMISARandomizationPlugin, MultiLingualStringEncodingPlugin,
+  AntiASTSerializationPlugin, DynamicKeyRotationPlugin, CodeSigningTamperChainPlugin,
+  CoroutineSchedulingObfuscationPlugin, EnvironmentFingerprintBindingPlugin,
+} from '../obfuscators/MissingTechniques';
+import {
+  ObfusQateQuantumPlugin, U3QuantumObfuscationPlugin, UnitaryObfuscationPlugin,
+  LLMZeroShotObfuscationPlugin, OBsmithSelfTesterPlugin, OASIFResistantPlugin,
+  LUCIDResistantPlugin, EgraphMBAPlugin, AsmMBAPlugin, PolarisMIRObfuscationPlugin,
+  HenonMapPredicatePlugin, PiecewisePredicatePlugin, MimicryObfuscationPlugin,
+  AntiLLMHardeningPlugin,
+} from '../obfuscators/FrontierTechniques';
 
 export class Orchestrator {
   private config: GungnirConfig;
@@ -137,6 +149,31 @@ export class Orchestrator {
     const layer9: ObfuscationPlugin[] = [];
     layer9.push(new UltimateTechniquesPlugin()); // TT-01~TT-16
     layer9.push(new AdvancedTechniquesPlugin()); // TT-25~TT-28
+    layer9.push(new CFGRandomRewiringPlugin()); // TT-17
+    layer9.push(new VMISARandomizationPlugin()); // TT-18
+    layer9.push(new MultiLingualStringEncodingPlugin()); // TT-19
+    layer9.push(new AntiASTSerializationPlugin()); // TT-20
+    layer9.push(new DynamicKeyRotationPlugin()); // TT-21
+    layer9.push(new CodeSigningTamperChainPlugin()); // TT-22
+    layer9.push(new CoroutineSchedulingObfuscationPlugin()); // TT-23
+    layer9.push(new EnvironmentFingerprintBindingPlugin()); // TT-24
+    // Layer 10: Frontier Technologies (TT-29~TT-42)
+    const layer10: ObfuscationPlugin[] = [];
+    layer10.push(new ObfusQateQuantumPlugin()); // TT-29
+    layer10.push(new U3QuantumObfuscationPlugin()); // TT-30
+    layer10.push(new UnitaryObfuscationPlugin()); // TT-31
+    layer10.push(new LLMZeroShotObfuscationPlugin()); // TT-32
+    layer10.push(new OBsmithSelfTesterPlugin()); // TT-33
+    layer10.push(new OASIFResistantPlugin()); // TT-34
+    layer10.push(new LUCIDResistantPlugin()); // TT-35
+    layer10.push(new EgraphMBAPlugin()); // TT-36
+    layer10.push(new AsmMBAPlugin()); // TT-37
+    layer10.push(new PolarisMIRObfuscationPlugin()); // TT-38
+    layer10.push(new HenonMapPredicatePlugin()); // TT-39
+    layer10.push(new PiecewisePredicatePlugin()); // TT-40
+    layer10.push(new MimicryObfuscationPlugin()); // TT-41
+    layer10.push(new AntiLLMHardeningPlugin()); // TT-42
+    this.plugins.push(...layer10);
     this.plugins.push(...this.randomizeLayer(layer9));
   }
 
@@ -199,11 +236,78 @@ export class Orchestrator {
       }
     }
 
+    // Post-transform: syntax repair — remove statements after return in function bodies
+    this.repairReturnStatements(context.ast);
+
     return {
       ast: context.ast,
       context,
       report: context.polymorphismReport,
     };
+  }
+
+  /**
+   * Syntax repair: in any function body, if a return statement is not the
+   * last statement, truncate everything after it. Lua requires return to
+   * be the last statement of a block.
+   */
+  private repairReturnStatements(ast: Chunk): void {
+    const repairBody = (body: unknown[]): void => {
+      if (!Array.isArray(body)) return;
+      for (let i = 0; i < body.length; i++) {
+        const stmt = body[i] as Record<string, unknown>;
+        if (!stmt || typeof stmt !== 'object') continue;
+        if (stmt.type === 'ReturnStatement' && i < body.length - 1) {
+          // Truncate everything after this return
+          body.length = i + 1;
+          break;
+        }
+        // Recurse into nested blocks
+        for (const key of Object.keys(stmt)) {
+          if (key === 'type' || key === 'loc' || key === 'range') continue;
+          const val = stmt[key];
+          if (Array.isArray(val)) {
+            // Check if this array is a statement list (contains objects with type)
+            if (val.length > 0 && val[0] && typeof val[0] === 'object' && 'type' in (val[0] as object)) {
+              repairBody(val);
+            } else {
+              for (const item of val) {
+                if (item && typeof item === 'object' && 'type' in item) {
+                  repairReturnStatementsInNode(item);
+                }
+              }
+            }
+          } else if (val && typeof val === 'object' && 'type' in val) {
+            repairReturnStatementsInNode(val);
+          }
+        }
+      }
+    };
+
+    const repairReturnStatementsInNode = (node: unknown): void => {
+      const n = node as Record<string, unknown>;
+      if (!n || typeof n !== 'object') return;
+      if (Array.isArray(n.body)) {
+        repairBody(n.body as unknown[]);
+      }
+      for (const key of Object.keys(n)) {
+        if (key === 'type' || key === 'loc' || key === 'range' || key === 'body') continue;
+        const val = n[key];
+        if (Array.isArray(val)) {
+          for (const item of val) {
+            if (item && typeof item === 'object' && 'type' in item) {
+              repairReturnStatementsInNode(item);
+            }
+          }
+        } else if (val && typeof val === 'object' && 'type' in val) {
+          repairReturnStatementsInNode(val);
+        }
+      }
+    };
+
+    if (ast && Array.isArray(ast.body)) {
+      repairBody(ast.body as unknown[]);
+    }
   }
 
   /**
@@ -221,7 +325,7 @@ export class Orchestrator {
    * Get total technique count.
    */
   getTechniqueCount(): number {
-    return 128;
+    return 150;
   }
 
   /**

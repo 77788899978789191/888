@@ -294,7 +294,7 @@ do
   -- Invalid escape sequences that Lua tolerates but formatters choke on
   local _ab_str1 = "test\\!string\\:with\\#traps"
   -- Semicolon mazes
-  local _ab_x = 1;;; local _ab_y = 2;;;
+  local _ab_x = 1; local _ab_y = 2;
   -- \\r\\n vs \\n combinations
   local _ab_str2 = "line1\\r\\nline2\\nline3\\r"
   -- Long comment mismatches
@@ -304,7 +304,6 @@ do
   local _ab_str3 = "normal\\226\\128\\139string"
   -- Deeply nested parentheses
   local _ab_deep = ((((((${ctx.rng.int(1, 100)}))))))
-  ;;;
 end
 `.trim();
   }

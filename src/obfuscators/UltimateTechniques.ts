@@ -138,13 +138,13 @@ local function __gungnir_a2mba_transform(x, y, z)
   -- Layer 2: Polynomial mixing
   local l2 = (l1^2 + x * y + z^3) % 65536
   -- Layer 3: Nonlinear boolean-arithmetic mix
-  local l3 = bxor(l2, (x & y) | (z & ~y))
+  local l3 = bxor(l2, _bor(_band(x, y), _band(z, _bxor(y, 0xFFFFFFFF))))
   -- Layer 4: Architecture-level hardening (anti-generalization)
-  local l4 = ((l3 << 3) | (l3 >> 13)) ~ (x * z + y)
+  local l4 = _bxor(_bor(_lshift(l3, 3), _rshift(l3, 13)), x * z + y)
   -- Layer 5-8: Additional mixing
   local l5 = (l4 + l1 * l2) % 65536
-  local l6 = bxor(l5, l3) + (y << 2)
-  local l7 = ((l6 * 7 + 13) % 65536) ~ z
+  local l6 = bxor(l5, l3) + _lshift(y, 2)
+  local l7 = _bxor((l6 * 7 + 13) % 65536, z)
   local l8 = (l7 + l4 * l1) % 65536
   return l8
 end
@@ -382,8 +382,8 @@ local function __gungnir_egraph_mba(x, y, z)
   -- E-graph equivalence classes: multiple representations of same value
   local exprs = {
     function() return x + y end,
-    function() return (x ^ y) + 2*(x & y) end,  -- same as x+y
-    function() return (x | y) + (x & y) end,      -- same as x+y
+    function() return _bxor(x, y) + 2*_band(x, y) end,  -- same as x+y
+    function() return _bor(x, y) + _band(x, y) end,      -- same as x+y
     function() return (x + z) + (y - z) end,       -- same as x+y
     function() return (x * 2 + y * 2) / 2 end,     -- same as x+y
   }
@@ -488,7 +488,7 @@ local function __gungnir_lzma_compress(data)
       end
     end
     if best_len >= 3 then
-      table.insert(result, string.char(0x80 | math.floor(best_dist / 256)))
+      table.insert(result, string.char(_bor(0x80, math.floor(best_dist / 256))))
       table.insert(result, string.char(best_dist % 256))
       table.insert(result, string.char(best_len))
       i = i + best_len
@@ -625,14 +625,14 @@ local function __gungnir_anti_format_trap()
   -- Invalid escape sequences (Lua parser tolerates, formatters crash)
   local trap1 = "invalid\\!escape\\:here\\#now"
   -- Semicolon ambiguity
-  local x = 1;; local y = 2;;;
+  local x = 1; local y = 2;
   -- Unicode homoglyphs (zero-width characters)
-  local ​_hidden = "zero width variable name"
+  local _hidden_zw = "zero width variable name"
   -- Mixed line endings
-  local mixed = "line1\r\nline2\rline3\n"
+  local mixed = "line1\\r\\nline2\\rline3\\n"
   -- Comment nesting traps
-  --[[ nested -- [[ comment ]] ]]
-  return trap1 and x and y and ​_hidden and mixed
+  --[==[ nested -- [[ comment ]] ]==]
+  return trap1 and x and y and _hidden_zw and mixed
 end
 pcall(__gungnir_anti_format_trap)
 `.trim();

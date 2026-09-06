@@ -64,7 +64,7 @@ local function __gungnir_encrypt(data, algo, key)
   elseif algo == "bitrotate" then
     for i = 1, #data do
       local b = string.byte(data, i)
-      result[i] = string.char(((b << (key % 8)) | (b >> (8 - (key % 8)))) % 256)
+      result[i] = string.char(_bor(_lshift(b, key % 8), _rshift(b, 8 - (key % 8))) % 256)
     end
   elseif algo == "sbox" then
     local sbox = {}

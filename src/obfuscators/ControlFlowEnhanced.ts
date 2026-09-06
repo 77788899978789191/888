@@ -368,13 +368,13 @@ class AntiDecompileTraps {
 -- CF-18: Syntax-Level Anti-Parse Traps
 do
   -- Empty statement blocks (confuses AST builders)
-  ; ; ;
+  pcall(function() end) -- empty statement trap
   -- Mismatched-looking but valid parentheses
   local _trap1 = ((((1 + 2))))
   -- Long comment with special characters
   --[[ \x00\x01\x02 trap ]]
   -- Extra semicolons in function calls
-  pcall(function() end); ;
+  pcall(function() end) -- semicolon trap
   -- String with ambiguous escapes (Lua 5.1 tolerant)
   local _trap2 = "normal\\zstring"
   -- Nested do-end with empty body

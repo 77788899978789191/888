@@ -171,7 +171,7 @@ local _rt_critical_data = { ${ctx.rng.int(1, 9999)}, ${ctx.rng.int(1, 9999)}, ${
 local function __gungnir_fnv1a(data)
   local hash = 2166136261
   for i = 1, #data do
-    hash = (hash ~ data[i]) * 16777619 % 2147483647
+    hash = (_bxor(hash, data[i])) * 16777619 % 2147483647
   end
   return hash
 end
@@ -338,7 +338,7 @@ _rt_chain.links[2] = function(prev)
 end
 -- Chain link 3: depends on link 2
 _rt_chain.links[3] = function(prev)
-  _rt_chain.state = (prev ~ 0xAA) % 256
+  _rt_chain.state = _bxor(prev, 0xAA) % 256
   return _rt_chain.state
 end
 -- Chain link 4: depends on link 3

@@ -1,5 +1,5 @@
 /**
- * Project: Gungnir - VM Enhanced Techniques (VM-19 ~ VM-22)
+ * Project: Gungnir - VM Enhanced Techniques (VM-_bxor(19, VM)-22)
  *
  * VM-19: Multi-Pass AST Obfuscation Transformations
  * VM-20: Super Operator Fusion
@@ -191,7 +191,7 @@ local function __gungnir_deserialize_bytecode(encoded)
     local b3 = string.byte(encoded, i + 2) or 0
     local b4 = string.byte(encoded, i + 3) or 0
     -- XOR decrypt with runtime key
-    local rt_key = (math.floor(tick()) % 256) ~ ${key}
+    local rt_key = _bxor(math.floor(tick()) % 256, ${key})
     b1 = bxor(b1, rt_key)
     b2 = bxor(b2, rt_key)
     -- Pack into 32-bit instruction

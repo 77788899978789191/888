@@ -201,7 +201,7 @@ class MultiLayerEncoder {
           break;
         case 'custom':
           current = current.split('').map(c => String.fromCharCode(c.charCodeAt(0) ^ 0x5A)).join('');
-          decodeSteps.unshift('(s:gsub(".", function(c) return string.char(string.byte(c) ~ 90) end))');
+          decodeSteps.unshift('(s:gsub(".", function(c) return string.char_bxor((string.byte(c), 90)) end))');
           break;
         case 'reverse':
           current = current.split('').reverse().join('');
@@ -383,11 +383,11 @@ pcall(function() return #_proc_table end)
 local _tko_data = {}
 local _tko_proxy = setmetatable({}, {
   __index = function(_, k)
-    local encrypted = k:gsub(".", function(c) return string.char(string.byte(c) ~ 0x5A) end)
+    local encrypted = k:gsub(".", function(c) return string.char(_bxor(string.byte(c), 0x5A)) end)
     return _tko_data[encrypted]
   end,
   __newindex = function(_, k, v)
-    local encrypted = k:gsub(".", function(c) return string.char(string.byte(c) ~ 0x5A) end)
+    local encrypted = k:gsub(".", function(c) return string.char(_bxor(string.byte(c), 0x5A)) end)
     _tko_data[encrypted] = v
   end,
 })
@@ -547,7 +547,7 @@ end)
 local _encoded_data = "${encoded.replace(/"/g, '\\"')}"
 local function __gungnir_decode(s)
   -- Layer 1: XOR decode
-  s = s:gsub(".", function(c) return string.char(string.byte(c) ~ 0x5A) end)
+  s = s:gsub(".", function(c) return string.char(_bxor(string.byte(c), 0x5A)) end)
   -- Layer 2: hex decode
   s = s:gsub("..", function(cc) return string.char(tonumber(cc, 16) or 0) end)
   return s

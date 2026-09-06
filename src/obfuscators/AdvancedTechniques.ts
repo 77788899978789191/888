@@ -238,7 +238,15 @@ end)
       }
     });
 
-    if (functions.length < 2) return; // Need at least 2 functions to merge
+    // Filter: only include functions with a single return statement
+    // (avoids return-must-be-last issues after control flow flattening)
+    const validFunctions = functions.filter(f => {
+      const body = f.body;
+      if (!body || body.length !== 1) return false;
+      return body[0] && body[0].type === 'ReturnStatement';
+    });
+    if (validFunctions.length < 2) return; // Need at least 2 valid functions
+
 
     // Create super-function with merged state machine
     const superFuncName = '_super_mixed_' + ctx.rng.int(1000, 9999);
@@ -249,8 +257,8 @@ end)
     const mergedBody: LuaNode[] = [];
 
     // Function ID dispatch
-    for (let i = 0; i < functions.length; i++) {
-      const func = functions[i];
+    for (let i = 0; i < validFunctions.length; i++) {
+      const func = validFunctions[i];
       const clause: LuaNode = {
         type: 'IfStatement',
         clauses: [{
@@ -261,9 +269,20 @@ end)
             right: createNumericLiteral(i),
           },
           body: [
-            // Execute original function body
-            ...func.body,
-            { type: 'ReturnStatement', arguments: [] },
+            // Execute original function body wrapped in pcall
+            // (avoids return-must-be-last-statement issues after flattening)
+            {
+              type: 'CallStatement',
+              expression: {
+                type: 'CallExpression',
+                base: { type: 'Identifier', name: 'pcall' },
+                arguments: [{
+                  type: 'FunctionExpression',
+                  parameters: [{ type: 'Identifier', name: '...' }],
+                  body: func.body,
+                }],
+              },
+            },
           ],
         }],
         else_: i < functions.length - 1 ? [] : undefined,
@@ -280,7 +299,7 @@ end)
     };
 
     // Replace original functions with wrappers that call super function
-    for (const func of functions) {
+    for (const func of validFunctions) {
       const wrapper: LuaNode = {
         type: 'LocalFunctionStatement',
         identifier: createIdentifier(func.name),
@@ -290,7 +309,7 @@ end)
           arguments: [{
             type: 'CallExpression',
             base: createIdentifier(superFuncName),
-            arguments: [createNumericLiteral(functions.indexOf(func))],
+            arguments: [createNumericLiteral(validFunctions.indexOf(func))],
           }],
         }],
       };

@@ -708,7 +708,7 @@ local function __gungnir_decrypt_const(id)
   local result = ""
   for i = 1, #raw do
     local kb = key:byte(((i - 1) % #key) + 1) or 0
-    result = result .. string.char(raw:byte(i) ~ kb)
+    result = result .. string.char(_bxor(raw:byte(i), kb))
   end
   __gungnir_const_cache[id] = result
   return result
@@ -732,7 +732,7 @@ local function __gungnir_interp_switch(bc)
     pc = pc + 1
     local op = ${vmOpmap}[wire] or wire
     if op == 0 then -- ADD (VM-13 MBA form)
-      local r = pop(); local l = pop(); push((l ^ r) + 2*(l & r))
+      local r = pop(); local l = pop(); push(_bxor(l, r) + 2*_band(l, r))
     elseif op == 1 then -- SUB
       local r = pop(); local l = pop(); push(l - r)
     elseif op == 2 then -- MUL
@@ -748,7 +748,7 @@ local function __gungnir_interp_switch(bc)
     elseif op == 7 then -- OR
       local r = pop(); local l = pop(); push(l or r)
     elseif op == 8 then -- XOR (bit)
-      local r = pop(); local l = pop(); push(l ~ r)
+      local r = pop(); local l = pop(); push(_bxor(l, r))
     elseif op == 9 then -- NOT
       local v = pop(); push(not v)
     elseif op == 12 then -- JMP
