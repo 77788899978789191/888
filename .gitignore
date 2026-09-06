@@ -3,6 +3,7 @@ node_modules/
 
 # Build output
 dist/
+gungnir-rs/target/
 
 # Obfuscation output (generated, not source)
 *.obf.lua
@@ -17,3 +18,10 @@ Thumbs.db
 .vscode/
 .idea/
 *.swp
+
+# Logs
+*.log
+
+# Environment
+.env
+.env.local
