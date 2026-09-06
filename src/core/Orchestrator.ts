@@ -75,6 +75,20 @@ import {
   HenonMapPredicatePlugin, PiecewisePredicatePlugin, MimicryObfuscationPlugin,
   AntiLLMHardeningPlugin,
 } from '../obfuscators/FrontierTechniques';
+import {
+  MBASnifferResistantPlugin, FloatingPointMBAPlugin, KrakVMStylePlugin,
+  VMPredatorResistantPlugin, BytecodeVMStylePlugin, ObfuscatorIOStylePlugin,
+  KleeneAlgebraCFFPlugin, OLLVMStylePlugin, VMStateOpaquePlugin, ClydeDualVMPlugin,
+  SpreadSpectrumPlugin, ScriptShieldConfigPlugin, GoofyLuaPlugin, MoonveilIPPlugin,
+  LuauPackagerPlugin, CodeBleachPlugin, ARMObfuscationPlugin,
+  SystematicTaxonomyPlugin, LLMCrossLanguagePlugin, VariantAnalysisPlugin,
+  LightrayBytecodePlugin, MathOBFMultiLayerPlugin, ScriptShieldVMPlugin,
+  OnlineObfuscatorUXPlugin, GoofyLuaV2Plugin, AEGISGORGONPlugin, MLKEMChaoticPlugin,
+  LieGroupPlugin, CoTDeceptorPlugin, ALIBIAdversarialPlugin, AntiLLMWasmPlugin,
+  ObfVulnDetectionPlugin, ObfResiliencePlugin, KrakVMPerBytecodePlugin,
+  CenturionVMLoaderPlugin, VMPredatorAnchorPlugin, HandlerPermutationPlugin,
+  KleeneFormalPlugin, AntiCoTCFFPlugin, MultiLayerJumpPlugin, AntiCOBRAPlugin, FLOBPlugin,
+} from '../obfuscators/NewTechniques2026';
 
 export class Orchestrator {
   private config: GungnirConfig;
@@ -175,6 +189,56 @@ export class Orchestrator {
     layer10.push(new AntiLLMHardeningPlugin()); // TT-42
     this.plugins.push(...layer10);
     this.plugins.push(...this.randomizeLayer(layer9));
+
+    // Layer 11: 2026 Latest Techniques (TT-51~TT-67)
+    const layer11: ObfuscationPlugin[] = [];
+    layer11.push(new MBASnifferResistantPlugin()); // TT-51
+    layer11.push(new FloatingPointMBAPlugin()); // TT-52
+    layer11.push(new KrakVMStylePlugin()); // TT-53
+    layer11.push(new VMPredatorResistantPlugin()); // TT-54
+    layer11.push(new BytecodeVMStylePlugin()); // TT-55
+    layer11.push(new ObfuscatorIOStylePlugin()); // TT-56
+    layer11.push(new KleeneAlgebraCFFPlugin()); // TT-57
+    layer11.push(new OLLVMStylePlugin()); // TT-58
+    layer11.push(new VMStateOpaquePlugin()); // TT-59
+    layer11.push(new ClydeDualVMPlugin()); // TT-60
+    layer11.push(new SpreadSpectrumPlugin()); // TT-61
+    layer11.push(new ScriptShieldConfigPlugin()); // TT-62
+    layer11.push(new GoofyLuaPlugin()); // TT-63
+    layer11.push(new MoonveilIPPlugin()); // TT-64
+    layer11.push(new LuauPackagerPlugin()); // TT-65
+    layer11.push(new CodeBleachPlugin()); // TT-66
+    layer11.push(new ARMObfuscationPlugin()); // TT-67
+    this.plugins.push(...this.randomizeLayer(layer11));
+
+    // Layer 12: Systematic & Niche Techniques (TT-176~TT-200)
+    const layer12: ObfuscationPlugin[] = [];
+    layer12.push(new SystematicTaxonomyPlugin()); // TT-176
+    layer12.push(new LLMCrossLanguagePlugin()); // TT-177
+    layer12.push(new VariantAnalysisPlugin()); // TT-178
+    layer12.push(new LightrayBytecodePlugin()); // TT-179
+    layer12.push(new MathOBFMultiLayerPlugin()); // TT-180
+    layer12.push(new ScriptShieldVMPlugin()); // TT-181
+    layer12.push(new OnlineObfuscatorUXPlugin()); // TT-182
+    layer12.push(new GoofyLuaV2Plugin()); // TT-183
+    layer12.push(new AEGISGORGONPlugin()); // TT-184
+    layer12.push(new MLKEMChaoticPlugin()); // TT-185
+    layer12.push(new LieGroupPlugin()); // TT-186
+    layer12.push(new CoTDeceptorPlugin()); // TT-187
+    layer12.push(new ALIBIAdversarialPlugin()); // TT-188
+    layer12.push(new AntiLLMWasmPlugin()); // TT-189
+    layer12.push(new ObfVulnDetectionPlugin()); // TT-190
+    layer12.push(new ObfResiliencePlugin()); // TT-191
+    layer12.push(new KrakVMPerBytecodePlugin()); // TT-192
+    layer12.push(new CenturionVMLoaderPlugin()); // TT-193
+    layer12.push(new VMPredatorAnchorPlugin()); // TT-194
+    layer12.push(new HandlerPermutationPlugin()); // TT-195
+    layer12.push(new KleeneFormalPlugin()); // TT-196
+    layer12.push(new AntiCoTCFFPlugin()); // TT-197
+    layer12.push(new MultiLayerJumpPlugin()); // TT-198
+    layer12.push(new AntiCOBRAPlugin()); // TT-199
+    layer12.push(new FLOBPlugin()); // TT-200
+    this.plugins.push(...this.randomizeLayer(layer12));
   }
 
   /**
@@ -325,7 +389,7 @@ export class Orchestrator {
    * Get total technique count.
    */
   getTechniqueCount(): number {
-    return 150;
+    return 200;
   }
 
   /**

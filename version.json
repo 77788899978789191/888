@@ -1,9 +1,6 @@
 {
-  "version": "4.0.0",
-  "buildDate": "2026-09-06T00:00:00Z",
-  "timestamp": 1757116800,
-  "commit": "full-150-techniques",
-  "techniques": 150,
-  "layers": 10,
-  "description": "Gungnir - Personal Lua 5.1 Obfuscation Framework (Full 150-Technique Ultimate Edition with TT-17~TT-42 Advanced & Frontier Technologies)"
+  "version": "1.0.702",
+  "buildDate": "2026-09-06T02:51:39.064Z",
+  "timestamp": 1788663099064,
+  "commit": "4f0791e"
 }
