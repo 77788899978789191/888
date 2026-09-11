@@ -409,8 +409,8 @@ mod tests {
 
     #[test]
     fn test_mba_generator() {
-        let mut gen = MBAExpressionGenerator::new(42);
-        let expr = gen.generate_constant_replacement(5, &["x", "y", "z"]);
+        let mut codegen = MBAExpressionGenerator::new(42);
+        let expr = codegen.generate_constant_replacement(5, &["x", "y", "z"]);
         assert!(!expr.is_empty());
         assert!(expr.contains('|') || expr.contains('&') || expr.contains('^'));
     }

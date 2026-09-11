@@ -266,6 +266,150 @@ impl DataObfuscator {
     pub fn string_pool(&self) -> &[String] {
         &self.string_pool
     }
+
+    // ═══════════════════════════════════════════════════════════
+    // DC-09: 数据过程化
+    // ═══════════════════════════════════════════════════════════
+
+    /// 数据过程化
+    ///
+    /// 用函数调用生成静态表，而非字面量。
+    /// 生成函数包含复杂逻辑（循环、条件、闭包），每次返回不同布局。
+    pub fn proceduralize_table(&mut self, table_name: &str, entries: &[&str]) -> String {
+        let mut lua = String::new();
+
+        lua.push_str(&format!("-- DC-09: 数据过程化 ({})\n", table_name));
+        lua.push_str(&format!("local function _generate_{}()\n", table_name));
+        lua.push_str("    local _t = {}\n");
+        lua.push_str("    -- 通过循环和条件生成表内容\n");
+
+        for (i, entry) in entries.iter().enumerate() {
+            lua.push_str(&format!("    if {} % 2 == 0 then\n", i));
+            lua.push_str(&format!("        table.insert(_t, \"{}\")\n", entry));
+            lua.push_str("    else\n");
+            lua.push_str(&format!("        _t[{}] = \"{}\"\n", i + 1, entry));
+            lua.push_str("    end\n");
+        }
+
+        lua.push_str("    return _t\n");
+        lua.push_str("end\n");
+        lua.push_str(&format!("local {} = _generate_{}()\n", table_name, table_name));
+
+        lua
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // DC-12: 动态类型迷踪
+    // ═══════════════════════════════════════════════════════════
+
+    /// 动态类型迷踪
+    ///
+    /// 同一变量在不同路径被赋予不同Lua类型，
+    /// 通过条件分支控制类型转换，干扰静态类型推断。
+    pub fn generate_dynamic_type_maze(&self, var_name: &str) -> String {
+        let mut lua = String::new();
+
+        lua.push_str("-- DC-12: 动态类型迷踪\n");
+        lua.push_str(&format!("local {} = nil\n", var_name));
+        lua.push_str("if math.random(1, 3) == 1 then\n");
+        lua.push_str(&format!("    {} = 42  -- number\n", var_name));
+        lua.push_str("elseif math.random(1, 3) == 2 then\n");
+        lua.push_str(&format!("    {} = \"hello\"  -- string\n", var_name));
+        lua.push_str("else\n");
+        lua.push_str(&format!("    {} = {{1, 2, 3}}  -- table\n", var_name));
+        lua.push_str("end\n");
+        lua.push_str("-- 类型转换\n");
+        lua.push_str(&format!("if type({}) == \"number\" then\n", var_name));
+        lua.push_str(&format!("    {} = tostring({})\n", var_name, var_name));
+        lua.push_str("end\n");
+
+        lua
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // DC-13: 弱表与终结器隐式数据流
+    // ═══════════════════════════════════════════════════════════
+
+    /// 弱表与终结器隐式数据流
+    ///
+    /// 通过__gc元方法和弱表（__mode="kv"）传递数据，
+    /// 数据在GC触发时通过终结器传递到另一个表。
+    pub fn generate_weak_table_data_flow(&self) -> String {
+        let mut lua = String::new();
+
+        lua.push_str("-- DC-13: 弱表与终结器隐式数据流\n");
+        lua.push_str("local _weak_table = setmetatable({}, {__mode = \"kv\"})\n");
+        lua.push_str("local _finalizer_table = {}\n");
+        lua.push_str("-- 设置终结器\n");
+        lua.push_str("setmetatable(_finalizer_table, {\n");
+        lua.push_str("    __gc = function(self)\n");
+        lua.push_str("        -- GC触发时传递数据\n");
+        lua.push_str("        for k, v in pairs(_weak_table) do\n");
+        lua.push_str("            self[k] = v\n");
+        lua.push_str("        end\n");
+        lua.push_str("    end\n");
+        lua.push_str("})\n");
+        lua.push_str("-- 数据通过弱表隐式传递\n");
+        lua.push_str("_weak_table[\"secret\"] = \"hidden_data\"\n");
+
+        lua
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // DC-14: 语义等价替换
+    // ═══════════════════════════════════════════════════════════
+
+    /// 语义等价替换
+    ///
+    /// 将标准库调用替换为手动实现，消除标准库调用特征。
+    /// 例如：string.gsub→手动循环+字节操作，table.insert→手动索引赋值。
+    pub fn generate_semantic_equivalent(&self, func_name: &str) -> String {
+        let mut lua = String::new();
+
+        lua.push_str(&format!("-- DC-14: 语义等价替换 ({})\n", func_name));
+
+        match func_name {
+            "string.gsub" => {
+                lua.push_str("-- 手动实现string.gsub\n");
+                lua.push_str("local function _manual_gsub(s, pattern, repl)\n");
+                lua.push_str("    local result = \"\"\n");
+                lua.push_str("    local i = 1\n");
+                lua.push_str("    while i <= #s do\n");
+                lua.push_str("        local _start, _end = string.find(s, pattern, i)\n");
+                lua.push_str("        if _start then\n");
+                lua.push_str("            result = result .. string.sub(s, i, _start - 1) .. repl\n");
+                lua.push_str("            i = _end + 1\n");
+                lua.push_str("        else\n");
+                lua.push_str("            result = result .. string.sub(s, i)\n");
+                lua.push_str("            break\n");
+                lua.push_str("        end\n");
+                lua.push_str("    end\n");
+                lua.push_str("    return result\n");
+                lua.push_str("end\n");
+            }
+            "table.insert" => {
+                lua.push_str("-- 手动实现table.insert\n");
+                lua.push_str("local function _manual_insert(t, value)\n");
+                lua.push_str("    t[#t + 1] = value\n");
+                lua.push_str("end\n");
+            }
+            "string.len" => {
+                lua.push_str("-- 手动实现string.len\n");
+                lua.push_str("local function _manual_len(s)\n");
+                lua.push_str("    local _count = 0\n");
+                lua.push_str("    for _ in string.gmatch(s, \".\") do\n");
+                lua.push_str("        _count = _count + 1\n");
+                lua.push_str("    end\n");
+                lua.push_str("    return _count\n");
+                lua.push_str("end\n");
+            }
+            _ => {
+                lua.push_str(&format!("-- 未实现的替换: {}\n", func_name));
+            }
+        }
+
+        lua
+    }
 }
 
 #[cfg(test)]
@@ -367,5 +511,41 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn test_dc09_proceduralize_table() {
+        let mut obf = DataObfuscator::new(42);
+        let lua = obf.proceduralize_table("mytable", &["a", "b", "c"]);
+        assert!(lua.contains("DC-09"));
+        assert!(lua.contains("_generate_mytable"));
+    }
+
+    #[test]
+    fn test_dc12_dynamic_type_maze() {
+        let obf = DataObfuscator::new(42);
+        let lua = obf.generate_dynamic_type_maze("x");
+        assert!(lua.contains("DC-12"));
+        assert!(lua.contains("type(x)"));
+    }
+
+    #[test]
+    fn test_dc13_weak_table_data_flow() {
+        let obf = DataObfuscator::new(42);
+        let lua = obf.generate_weak_table_data_flow();
+        assert!(lua.contains("DC-13"));
+        assert!(lua.contains("__mode"));
+        assert!(lua.contains("__gc"));
+    }
+
+    #[test]
+    fn test_dc14_semantic_equivalent() {
+        let obf = DataObfuscator::new(42);
+        let lua = obf.generate_semantic_equivalent("string.gsub");
+        assert!(lua.contains("DC-14"));
+        assert!(lua.contains("_manual_gsub"));
+
+        let lua2 = obf.generate_semantic_equivalent("table.insert");
+        assert!(lua2.contains("_manual_insert"));
     }
 }

@@ -367,7 +367,7 @@ end
         let mut result = String::new();
         for _ in 0..length {
             let idx = self.rng.gen_range(0..chars.len());
-            result.push(chars.chars().nth(idx).unwrap());
+            result.push(chars.as_bytes()[idx] as char);
         }
         result
     }

@@ -316,7 +316,7 @@ impl Lexer {
                         }
                         return Ok(result);
                     }
-                    result.push(self.advance().unwrap());
+                    if let Some(c) = self.advance() { result.push(c); }
                 }
                 Some(c) => {
                     result.push(c);

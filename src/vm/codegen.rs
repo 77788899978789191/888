@@ -430,36 +430,36 @@ mod tests {
 
     #[test]
     fn test_generator_creation() {
-        let gen = VMCodeGenerator::new(42);
-        assert!(gen.opcode_mapping().verify_no_conflicts());
+        let codegen = VMCodeGenerator::new(42);
+        assert!(codegen.opcode_mapping().verify_no_conflicts());
     }
 
     #[test]
     fn test_compile_simple_expression() {
-        let mut gen = VMCodeGenerator::new(42);
+        let mut codegen = VMCodeGenerator::new(42);
         let expr = Expression::BinaryOp {
             op: BinaryOperator::Add,
             left: Box::new(Expression::Integer(1)),
             right: Box::new(Expression::Integer(2)),
         };
-        let instructions = gen.compile_expression(&expr);
+        let instructions = codegen.compile_expression(&expr);
         assert_eq!(instructions.len(), 3); // PUSH, PUSH, ADD
     }
 
     #[test]
     fn test_compile_assignment() {
-        let mut gen = VMCodeGenerator::new(42);
+        let mut codegen = VMCodeGenerator::new(42);
         let stmt = Statement::LocalDeclaration {
             names: vec!["x".to_string()],
             values: Some(vec![Expression::Integer(10)]),
         };
-        let instructions = gen.compile_statement(&stmt);
+        let instructions = codegen.compile_statement(&stmt);
         assert!(instructions.len() >= 2); // PUSH, POP
     }
 
     #[test]
     fn test_compile_while() {
-        let mut gen = VMCodeGenerator::new(42);
+        let mut codegen = VMCodeGenerator::new(42);
         let stmt = Statement::While {
             condition: Expression::Boolean(true),
             body: Block {
@@ -467,14 +467,14 @@ mod tests {
                 return_statement: None,
             },
         };
-        let instructions = gen.compile_statement(&stmt);
+        let instructions = codegen.compile_statement(&stmt);
         assert!(instructions.len() >= 3);
     }
 
     #[test]
     fn test_generate_vm_interpreter() {
-        let gen = VMCodeGenerator::new(42);
-        let lua = gen.generate_vm_interpreter_lua();
+        let codegen = VMCodeGenerator::new(42);
+        let lua = codegen.generate_vm_interpreter_lua();
         assert!(lua.contains("_run_switch"));
         assert!(lua.contains("_run_table"));
         assert!(lua.contains("_opcode_map"));
@@ -482,7 +482,7 @@ mod tests {
 
     #[test]
     fn test_compile_block() {
-        let mut gen = VMCodeGenerator::new(42);
+        let mut codegen = VMCodeGenerator::new(42);
         let block = Block {
             statements: vec![
                 Statement::LocalDeclaration {
@@ -492,7 +492,7 @@ mod tests {
             ],
             return_statement: None,
         };
-        let program = gen.compile_block(&block);
+        let program = codegen.compile_block(&block);
         assert!(!program.instructions.is_empty());
     }
 }

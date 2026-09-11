@@ -6,6 +6,7 @@ pub mod seed_system;
 pub mod core;
 pub mod polymorphism;
 pub mod codegen;
+pub mod advanced;
 
 pub use seed_system::RandomSeedSystem;
 pub use core::{
@@ -14,6 +15,11 @@ pub use core::{
 };
 pub use polymorphism::*;
 pub use codegen::VMCodeGenerator;
+pub use advanced::{
+    SelfMutatingEngine, RuntimeInstructionReplacer, LLMEnhancedCodegen,
+    MultiPassAstTransformer, SuperOperatorFusion, RandomizedDispatchLoop,
+    DispatchMode, FusedOpcode,
+};
 
 /// VM技术数量
 pub const VM_TECHNIQUE_COUNT: usize = 22;
