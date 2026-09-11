@@ -8,7 +8,7 @@ repository = "https://github.com/77788899978789191/888"
 
 [lib]
 name = "gungnir"
-crate-type = ["rlib", "staticlib"]
+crate-type = ["rlib", "staticlib", "cdylib"]
 path = "src/lib.rs"
 
 [[bin]]

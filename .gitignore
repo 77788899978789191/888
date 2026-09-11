@@ -1,9 +1,10 @@
-# Dependencies
-node_modules/
+# Rust build output
+/target/
+target/
 
-# Build output
-dist/
-gungnir-rs/target/
+# WASM build output
+/web/pkg/
+/pkg/
 
 # Obfuscation output (generated, not source)
 *.obf.lua
@@ -21,6 +22,7 @@ Thumbs.db
 
 # Logs
 *.log
+.gungnir-logs/
 
 # Environment
 .env

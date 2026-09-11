@@ -1,4 +1,4 @@
-name: Build and Deploy
+name: Build and Deploy Rust WASM
 
 on:
   push:
@@ -21,39 +21,44 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
         with:
-          node-version: '20'
-          cache: 'npm'
+          targets: wasm32-unknown-unknown
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Install wasm-pack
+        run: cargo install wasm-pack
 
-      - name: Build obfuscator
-        run: npm run build
+      - name: Build Rust library
+        run: cargo build --release
 
       - name: Run tests
-        run: npm test
-        continue-on-error: true
+        run: cargo test
+
+      - name: Build WASM
+        run: wasm-pack build --target web --out-dir web/pkg -- --features wasm
 
       - name: Generate version info
         run: |
           echo '{
-            "version": "1.0.'${{ github.run_number }}'",
+            "version": "6.0.'${{ github.run_number }}'",
             "buildDate": "'$(date -u +"%Y-%m-%dT%H:%M:%SZ")'",
             "timestamp": '$(date +%s)',
             "commit": "'${{ github.sha }}'",
-            "runNumber": ${{ github.run_number }}
+            "runNumber": ${{ github.run_number }},
+            "engine": "Rust + WASM",
+            "techniques": 162
           }' > version.json
 
       - name: Copy build artifacts to docs
         run: |
-          mkdir -p docs/dist
-          if [ -d dist ]; then
-            cp -r dist/* docs/dist/ 2>/dev/null || true
+          mkdir -p docs/pkg
+          if [ -d web/pkg ]; then
+            cp -r web/pkg/* docs/pkg/ 2>/dev/null || true
           fi
+          cp web/index.html docs/index.html 2>/dev/null || true
           cp version.json docs/version.json 2>/dev/null || true
+          ls -la docs/
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
@@ -65,10 +70,10 @@ jobs:
 
       - name: Create version tag
         run: |
-          TAG="v1.0.${{ github.run_number }}-$(date +%Y%m%d)"
+          TAG="v6.0.${{ github.run_number }}-$(date +%Y%m%d)"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -a "$TAG" -m "Auto-generated release $TAG" || true
+          git tag -a "$TAG" -m "Rust WASM release $TAG" || true
           git push origin "$TAG" || true
         continue-on-error: true
 
