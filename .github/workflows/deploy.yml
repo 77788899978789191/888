@@ -39,7 +39,8 @@ jobs:
         run: cargo test
 
       - name: Build WASM
-        run: wasm-pack build --target web --out-dir web/pkg -- --features wasm
+        # --no-opt: 禁用 wasm-opt，避免 Binaryen 对 bulk memory 指令报错
+        run: wasm-pack build --target web --out-dir web/pkg --no-opt -- --features wasm
 
       - name: Generate version info
         run: |
