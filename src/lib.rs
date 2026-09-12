@@ -34,10 +34,10 @@ pub use core::seed::{BuildSeed, LayoutParams, OpcodePosition, OperandPosition};
 pub use core::stats::{ObfuscationStats, TechniqueStat};
 
 /// 库版本号
-pub const VERSION: &str = "6.0.0";
+pub const VERSION: &str = "7.0.0";
 
 /// 总技术数量
-pub const TOTAL_TECHNIQUES: usize = 200;
+pub const TOTAL_TECHNIQUES: usize = 238;
 
 /// 统一混淆入口
 ///
@@ -67,12 +67,12 @@ mod tests {
 
     #[test]
     fn test_version() {
-        assert_eq!(VERSION, "6.0.0");
+        assert_eq!(VERSION, "7.0.0");
     }
 
     #[test]
     fn test_total_techniques() {
-        assert_eq!(TOTAL_TECHNIQUES, 200);
+        assert_eq!(TOTAL_TECHNIQUES, 238);
     }
 
     #[test]

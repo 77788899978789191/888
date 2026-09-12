@@ -1,8 +1,8 @@
 [package]
 name = "gungnir"
-version = "6.0.0"
+version = "7.0.0"
 edition = "2021"
-description = "Gungnir - Ultimate Lua 5.1 Obfuscator (200+ techniques)"
+description = "Gungnir - Ultimate Lua 5.1 Obfuscator (238 techniques)"
 license = "MIT"
 repository = "https://github.com/77788899978789191/888"
 

@@ -5,7 +5,7 @@
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
 
-use crate::{ObfuscatorConfig, Orchestrator, VERSION};
+use crate::{ObfuscatorConfig, Orchestrator, VERSION, TOTAL_TECHNIQUES};
 
 /// WASM混淆结果
 #[cfg(feature = "wasm")]
@@ -106,7 +106,7 @@ pub fn get_version() -> String {
 #[cfg(feature = "wasm")]
 #[wasm_bindgen(js_name = "getTotalTechniques")]
 pub fn get_total_techniques() -> usize {
-    200
+    TOTAL_TECHNIQUES
 }
 
 /// 获取默认配置（JSON格式）
@@ -133,7 +133,8 @@ mod tests {
 
     #[test]
     fn test_version() {
-        assert_eq!(VERSION, "6.0.0");
+        assert_eq!(VERSION, "7.0.0");
+        assert_eq!(TOTAL_TECHNIQUES, 238);
     }
 
     #[test]
