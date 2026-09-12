@@ -1,0 +1,21 @@
+{
+  "name": "gungnir",
+  "type": "module",
+  "description": "Gungnir - Ultimate Lua 5.1 Obfuscator (200+ techniques)",
+  "version": "6.0.0",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/77788899978789191/888"
+  },
+  "files": [
+    "gungnir_bg.wasm",
+    "gungnir.js",
+    "gungnir.d.ts"
+  ],
+  "main": "gungnir.js",
+  "types": "gungnir.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}
