@@ -1,241 +1,574 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gungnir WASM - Lua 5.1 混淆器</title>
-    <style>
-        body {
-            font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
-            background: #050807;
-            color: #c8f5d4;
-            margin: 0;
-            padding: 20px;
-        }
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-        }
-        h1 {
-            color: #00ff41;
-            text-shadow: 0 0 20px rgba(0, 255, 65, 0.3);
-        }
-        .main-grid {
-            display: grid;
-            grid-template-columns: 1fr 300px 1fr;
-            gap: 16px;
-            margin-bottom: 16px;
-        }
-        .panel {
-            border: 1px solid #1a3324;
-            background: #0a0f0c;
-            display: flex;
-            flex-direction: column;
-            min-height: 400px;
-        }
-        .panel-header {
-            padding: 10px 16px;
-            border-bottom: 1px solid #1a3324;
-            background: rgba(0, 255, 65, 0.02);
-            color: #00ff41;
-            font-size: 12px;
-            letter-spacing: 2px;
-            text-transform: uppercase;
-        }
-        textarea {
-            flex: 1;
-            background: #070b09;
-            color: #c8f5d4;
-            border: none;
-            outline: none;
-            resize: none;
-            padding: 16px;
-            font-family: inherit;
-            font-size: 12.5px;
-            line-height: 1.6;
-            tab-size: 4;
-        }
-        .controls {
-            padding: 16px;
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-        }
-        .ctrl-group {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-        .ctrl-label {
-            font-size: 11px;
-            color: #5a8a6a;
-            text-transform: uppercase;
-            letter-spacing: 1.5px;
-            display: flex;
-            justify-content: space-between;
-        }
-        .ctrl-label b {
-            color: #00ff41;
-            font-size: 14px;
-        }
-        input[type=range] {
-            width: 100%;
-            height: 4px;
-            background: linear-gradient(90deg, #00b32d, #0a3d1a);
-            outline: none;
-        }
-        button {
-            border: 1px solid #00b32d;
-            background: rgba(0, 255, 65, 0.15);
-            color: #00ff41;
-            font-family: inherit;
-            font-size: 13px;
-            letter-spacing: 2px;
-            text-transform: uppercase;
-            padding: 14px 20px;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        button:hover {
-            background: rgba(0, 255, 65, 0.25);
-            box-shadow: 0 0 20px rgba(0, 255, 65, 0.2);
-        }
-        button:disabled {
-            opacity: 0.3;
-            cursor: not-allowed;
-        }
-        .status-bar {
-            display: flex;
-            gap: 12px;
-            flex-wrap: wrap;
-            font-size: 11px;
-            margin-bottom: 16px;
-        }
-        .status-item {
-            color: #5a8a6a;
-        }
-        .status-item b {
-            color: #00ff41;
-        }
-        #log {
-            background: #070b09;
-            border: 1px solid #1a3324;
-            padding: 12px;
-            font-size: 11px;
-            max-height: 200px;
-            overflow-y: auto;
-        }
-        .log-line {
-            color: #5a8a6a;
-            margin-bottom: 4px;
-        }
-        .log-line.success {
-            color: #00ff41;
-        }
-        .log-line.error {
-            color: #ff3355;
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>冈格尼尔 · GUNGNIR — Lua 混淆器 v7.0 · 238项终极强化版</title>
+<style>
+  :root {
+    --bg: #050807;
+    --bg-panel: #0a0f0c;
+    --bg-input: #070b09;
+    --green: #00ff41;
+    --green-dim: #00b32d;
+    --green-dark: #0a3d1a;
+    --green-glow: rgba(0, 255, 65, 0.15);
+    --border: #1a3324;
+    --text: #c8f5d4;
+    --text-dim: #5a8a6a;
+    --red: #ff3355;
+    --yellow: #ffd60a;
+    --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', Consolas, monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-mono);
+    overflow-x: hidden;
+    position: relative;
+  }
+  /* ===== Matrix rain background ===== */
+  #matrixCanvas {
+    position: fixed; top: 0; left: 0;
+    width: 100%; height: 100%;
+    opacity: 0.06; z-index: 0;
+    pointer-events: none;
+  }
+  /* ===== Scanline overlay ===== */
+  body::after {
+    content: '';
+    position: fixed; top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent 0px,
+      transparent 2px,
+      rgba(0, 0, 0, 0.08) 3px
+    );
+    pointer-events: none; z-index: 999;
+  }
+  .container {
+    position: relative; z-index: 1;
+    max-width: 1400px; margin: 0 auto;
+    padding: 20px;
+  }
+  /* ===== Header ===== */
+  header {
+    border: 1px solid var(--border);
+    background: linear-gradient(180deg, rgba(0,255,65,0.03), transparent);
+    padding: 24px 32px;
+    margin-bottom: 20px;
+    display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: wrap; gap: 16px;
+  }
+  .logo-block { display: flex; align-items: center; gap: 20px; }
+  .logo {
+    font-size: 42px; font-weight: 800;
+    letter-spacing: 6px;
+    color: var(--green);
+    text-shadow: 0 0 20px var(--green-glow), 0 0 40px var(--green-glow);
+    animation: flicker 4s infinite;
+  }
+  @keyframes flicker {
+    0%, 91%, 94%, 100% { opacity: 1; }
+    92%, 93% { opacity: 0.4; }
+  }
+  .logo-sub {
+    font-size: 11px; color: var(--text-dim);
+    letter-spacing: 2px; text-transform: uppercase;
+  }
+  .ver-badge {
+    border: 1px solid var(--green-dim);
+    color: var(--green);
+    padding: 4px 12px; font-size: 12px;
+    background: var(--green-glow);
+  }
+  .status-bar {
+    display: flex; gap: 12px; flex-wrap: wrap;
+    font-size: 11px;
+  }
+  .status-item { color: var(--text-dim); }
+  .status-item b { color: var(--green); }
+  /* ===== Main grid ===== */
+  .main-grid {
+    display: grid;
+    grid-template-columns: 1fr 340px 1fr;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+  @media (max-width: 1100px) {
+    .main-grid { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 640px) {
+    .container { padding: 10px; }
+    header { padding: 14px 16px; }
+    .logo { font-size: 26px; letter-spacing: 3px; }
+    .logo-sub { font-size: 9px; }
+    .status-bar { width: 100%; justify-content: flex-start; }
+    .status-item { font-size: 9px; padding: 3px 8px; }
+    .panel { min-height: 320px; }
+    .panel-header { flex-wrap: wrap; gap: 6px; }
+    .btn-upload { font-size: 12px; padding: 10px 16px; }
+    .btn-primary { font-size: 14px; padding: 14px; }
+    .btn-secondary { font-size: 12px; padding: 12px; }
+    .code-area, .output-area { font-size: 11px; }
+    .upload-hint { font-size: 8px; }
+  }
+  .panel {
+    border: 1px solid var(--border);
+    background: var(--bg-panel);
+    display: flex; flex-direction: column;
+    min-height: 480px;
+  }
+  .panel-header {
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center;
+    background: rgba(0,255,65,0.02);
+    flex-shrink: 0;
+  }
+  .panel-title {
+    font-size: 12px; letter-spacing: 2px;
+    color: var(--green); text-transform: uppercase;
+  }
+  .panel-title::before { content: '▌ '; }
+  .panel-body { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  /* ===== Editor areas ===== */
+  .drop-zone {
+    flex: 1; position: relative;
+    display: flex; flex-direction: column;
+  }
+  .drop-zone.dragover::before {
+    content: '⟨⟨ DROP .LUA FILE ⟩⟩';
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(0,255,65,0.1);
+    border: 2px dashed var(--green);
+    color: var(--green); font-size: 18px; letter-spacing: 3px;
+    z-index: 10;
+  }
+  textarea.code-area {
+    flex: 1; width: 100%;
+    background: var(--bg-input);
+    color: var(--text);
+    border: none; outline: none; resize: none;
+    padding: 16px;
+    font-family: var(--font-mono);
+    font-size: 12.5px; line-height: 1.6;
+    tab-size: 4;
+    min-height: 380px;
+  }
+  textarea.code-area::placeholder { color: #2a4a36; }
+  textarea.code-area:focus { background: #081008; }
+  .output-area {
+    flex: 1; overflow: auto;
+    padding: 16px;
+    font-size: 12px; line-height: 1.55;
+    white-space: pre-wrap; word-break: break-all;
+    color: #9fe8b4;
+    background: var(--bg-input);
+    min-height: 380px;
+  }
+  .output-area .err { color: var(--red); }
+  /* ===== Control panel ===== */
+  .controls { padding: 16px; display: flex; flex-direction: column; gap: 18px; overflow-y: auto; }
+  .ctrl-group { display: flex; flex-direction: column; gap: 8px; }
+  .ctrl-label {
+    font-size: 11px; color: var(--text-dim);
+    text-transform: uppercase; letter-spacing: 1.5px;
+    display: flex; justify-content: space-between;
+  }
+  .ctrl-label b { color: var(--green); font-size: 14px; }
+  input[type=range] {
+    -webkit-appearance: none; appearance: none;
+    width: 100%; height: 4px;
+    background: linear-gradient(90deg, var(--green-dim), var(--green-dark));
+    outline: none;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 16px; height: 16px;
+    background: var(--green);
+    box-shadow: 0 0 10px var(--green-glow);
+    cursor: pointer;
+  }
+  .intensity-marks { display: flex; justify-content: space-between; font-size: 9px; color: #2a4a36; }
+  /* Module toggles */
+  .module-toggle {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    background: var(--bg-input);
+    cursor: pointer;
+    transition: all 0.15s;
+    user-select: none;
+  }
+  .module-toggle:hover { border-color: var(--green-dim); }
+  .module-toggle .mod-name { font-size: 11.5px; }
+  .module-toggle .mod-desc { font-size: 9px; color: var(--text-dim); margin-top: 2px; }
+  .toggle-indicator {
+    width: 34px; height: 16px;
+    border: 1px solid var(--border);
+    position: relative; flex-shrink: 0;
+    transition: all 0.2s;
+  }
+  .toggle-indicator::after {
+    content: '';
+    position: absolute; top: 2px; left: 2px;
+    width: 10px; height: 10px;
+    background: #333; transition: all 0.2s;
+  }
+  .module-toggle.active .toggle-indicator { border-color: var(--green-dim); }
+  .module-toggle.active .toggle-indicator::after {
+    left: 20px; background: var(--green);
+    box-shadow: 0 0 8px var(--green);
+  }
+  /* Buttons */
+  .btn {
+    border: 1px solid var(--green-dim);
+    background: var(--green-glow);
+    color: var(--green);
+    font-family: var(--font-mono);
+    font-size: 13px; letter-spacing: 2px; text-transform: uppercase;
+    padding: 14px 20px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+  }
+  .btn:hover { background: rgba(0,255,65,0.25); box-shadow: 0 0 20px var(--green-glow); }
+  .btn:disabled { opacity: 0.3; cursor: not-allowed; }
+  .btn-primary { font-size: 15px; padding: 18px; font-weight: 700; }
+  .btn-secondary { font-size: 11px; padding: 10px 14px; }
+  .btn-upload {
+    font-size: 11px; padding: 8px 14px;
+    background: linear-gradient(135deg, rgba(0,255,65,0.18), rgba(0,179,45,0.08));
+    border-color: var(--green-dim);
+    color: var(--green);
+    font-weight: 700;
+    box-shadow: 0 0 12px rgba(0,255,65,0.12), inset 0 0 8px rgba(0,255,65,0.06);
+    letter-spacing: 1px;
+  }
+  .btn-upload:active { transform: scale(0.96); }
+  .upload-hint {
+    position: absolute; bottom: 8px; left: 0; right: 0;
+    text-align: center; pointer-events: none;
+    font-size: 9px; color: var(--text-dim); opacity: .7;
+    letter-spacing: .5px; padding: 0 12px;
+  }
+  .btn-row { display: flex; gap: 8px; }
+  .btn-row .btn { flex: 1; }
+  /* ===== Stats ===== */
+  .stats-panel {
+    border: 1px solid var(--border);
+    background: var(--bg-panel);
+    padding: 16px 20px;
+    margin-bottom: 16px;
+  }
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+  }
+  .stat-item {
+    border-left: 2px solid var(--green-dim);
+    padding-left: 12px;
+  }
+  .stat-value { font-size: 26px; font-weight: 700; color: var(--green); }
+  .stat-label { font-size: 10px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; }
+  /* ===== Terminal log ===== */
+  .terminal {
+    border: 1px solid var(--border);
+    background: #030504;
+    padding: 12px 16px;
+    font-size: 11px; line-height: 1.8;
+    max-height: 180px; overflow-y: auto;
+    margin-bottom: 16px;
+  }
+  .terminal .line { color: var(--text-dim); }
+  .terminal .line.ok { color: var(--green); }
+  .terminal .line.err { color: var(--red); }
+  .terminal .line.warn { color: var(--yellow); }
+  .terminal .line::before { content: '$ '; color: var(--green-dim); }
+  footer {
+    text-align: center; padding: 20px;
+    color: #2a4a36; font-size: 10px; letter-spacing: 1px;
+  }
+  /* Busy indicator */
+  .busy {
+    position: fixed; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, transparent, var(--green), transparent);
+    animation: scan 1s linear infinite;
+    z-index: 1000; display: none;
+  }
+  .busy.active { display: block; }
+  @keyframes scan {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+  }
+  /* seed input */
+  .seed-row { display: flex; gap: 8px; align-items: center; }
+  .seed-row input {
+    flex: 1; background: var(--bg-input);
+    border: 1px solid var(--border); color: var(--green);
+    font-family: var(--font-mono); font-size: 12px;
+    padding: 8px 10px; outline: none;
+  }
+  .seed-row input:focus { border-color: var(--green-dim); }
+  .seed-row button {
+    background: var(--bg-input); border: 1px solid var(--border);
+    color: var(--text-dim); cursor: pointer;
+    font-family: var(--font-mono); font-size: 11px;
+    padding: 8px 12px;
+  }
+  .seed-row button:hover { color: var(--green); border-color: var(--green-dim); }
+</style>
 </head>
 <body>
-    <div class="container">
-        <h1>冈格尼尔 · GUNGNIR <span style="font-size: 0.6em;">WASM版</span></h1>
-        <div class="status-bar">
-            <span class="status-item">版本 <b id="version">加载中...</b></span>
-            <span class="status-item">技术 <b id="techniques">200</b></span>
-            <span class="status-item">引擎 <b>Rust + WASM</b></span>
+<canvas id="matrixCanvas"></canvas>
+<div class="busy" id="busyBar"></div>
+<div class="container">
+
+  <header>
+    <div class="logo-block">
+      <div>
+        <div class="logo">冈格尼尔 <span style="font-size:.6em;letter-spacing:.2em">GUNGNIR</span></div>
+        <div class="logo-sub">// 个人专用防御框架 — Lua 5.1 极致混淆引擎 · Rust 核心</div>
+      </div>
+    </div>
+    <div class="status-bar">
+      <span class="status-item">引擎 <b>Rust + WASM</b></span>
+      <span class="status-item">目标 <b>LUA 5.1</b></span>
+      <span class="status-item">技术 <b id="moduleCount">238</b></span>
+      <span class="status-item">版本 <b id="versionTag">加载中...</b></span>
+      <span class="ver-badge">稳定</span>
+    </div>
+  </header>
+
+  <div class="main-grid">
+    <!-- Input -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">源码输入</span>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:10px;color:var(--text-dim)" id="inputMeta">0 字节</span>
+          <button class="btn btn-upload" id="uploadBtn" title="从设备文件管理器选择 .lua 文件">📁 上传文件</button>
         </div>
-
-        <div class="main-grid">
-            <div class="panel">
-                <div class="panel-header">源码输入</div>
-                <textarea id="inputCode" placeholder="在此粘贴 Lua 源码...">local x = 10
-local y = x * 3 + 7
-print("Result:", y)</textarea>
-            </div>
-
-            <div class="panel">
-                <div class="panel-header">混淆配置</div>
-                <div class="controls">
-                    <div class="ctrl-group">
-                        <div class="ctrl-label"><span>混淆强度</span><b id="intensityVal">10</b></div>
-                        <input type="range" id="intensitySlider" min="1" max="10" value="10">
-                    </div>
-                    <button id="obfuscateBtn" disabled>加载WASM中...</button>
-                    <button id="loadSampleBtn">加载示例</button>
-                </div>
-            </div>
-
-            <div class="panel">
-                <div class="panel-header">混淆输出</div>
-                <textarea id="outputCode" readonly placeholder="混淆结果将显示在这里..."></textarea>
-            </div>
+      </div>
+      <input type="file" id="fileInput" hidden
+        accept=".lua,.luau,.txt,text/plain,application/octet-stream">
+      <div class="panel-body">
+        <div class="drop-zone" id="dropZone">
+          <textarea class="code-area" id="inputCode" spellcheck="false"
+            placeholder="-- 在此粘贴 Lua 源码，或点击「上传文件」从手机文件管理器选择
+-- ─────────────────────────────────────
+-- local function greet(name)
+--     print(&quot;你好, &quot; .. name)
+-- end
+-- greet(&quot;世界&quot;)"></textarea>
+          <div class="upload-hint">📱 支持 iOS「文件」App / 安卓系统文件管理器 · 也可以拖拽文件到此处</div>
         </div>
-
-        <div id="log"></div>
+      </div>
     </div>
 
-    <script type="module">
-        import init, { obfuscate, getVersion, getTotalTechniques, getMaximumConfig } from './pkg/gungnir.js';
+    <!-- Controls -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">混淆配置</span>
+      </div>
+      <div class="controls">
+        <div class="ctrl-group">
+          <div class="ctrl-label"><span>混淆强度</span><b id="intensityVal">10</b></div>
+          <input type="range" id="intensitySlider" min="1" max="10" value="10">
+          <div class="intensity-marks">
+            <span>1</span><span>3</span><span>5</span><span>7</span><span>9</span><span>10</span>
+          </div>
+        </div>
 
-        const log = (msg, type = '') => {
-            const logEl = document.getElementById('log');
-            const div = document.createElement('div');
-            div.className = 'log-line ' + type;
-            div.textContent = '[' + new Date().toLocaleTimeString() + '] ' + msg;
-            logEl.appendChild(div);
-            logEl.scrollTop = logEl.scrollHeight;
-        };
+        <div class="ctrl-group">
+          <div class="ctrl-label"><span>随机种子</span></div>
+          <div class="seed-row">
+            <input type="text" id="seedInput" value="1337">
+            <button id="seedRandom" title="随机种子">随机</button>
+          </div>
+        </div>
 
-        async function main() {
-            try {
-                await init();
-                document.getElementById('version').textContent = getVersion();
-                document.getElementById('techniques').textContent = getTotalTechniques();
-                document.getElementById('obfuscateBtn').disabled = false;
-                document.getElementById('obfuscateBtn').textContent = '开始混淆';
-                log('WASM模块加载成功', 'success');
-                log('版本: ' + getVersion() + ', 技术: ' + getTotalTechniques(), 'success');
-            } catch (e) {
-                log('WASM加载失败: ' + e.message, 'error');
-            }
-        }
+        <div class="ctrl-group">
+          <div class="ctrl-label"><span>混淆模块</span></div>
+          <div class="module-toggle active" data-module="rename">
+            <div><div class="mod-name">标识符重命名</div><div class="mod-desc">全标识符 → 混沌命名（SC-01）</div></div>
+            <div class="toggle-indicator"></div>
+          </div>
+          <div class="module-toggle active" data-module="strings">
+            <div><div class="mod-name">字符串加密</div><div class="mod-desc">AES 加密池 + 惰性解密（DC-01）</div></div>
+            <div class="toggle-indicator"></div>
+          </div>
+          <div class="module-toggle active" data-module="constants">
+            <div><div class="mod-name">常量混淆</div><div class="mod-desc">常量 → MBA 等价表达式（DC-03）</div></div>
+            <div class="toggle-indicator"></div>
+          </div>
+          <div class="module-toggle active" data-module="expressions">
+            <div><div class="mod-name">表达式分解</div><div class="mod-desc">字面算术 → 深层嵌套树（CF-05）</div></div>
+            <div class="toggle-indicator"></div>
+          </div>
+        </div>
 
-        document.getElementById('obfuscateBtn').addEventListener('click', () => {
-            const code = document.getElementById('inputCode').value;
-            if (!code.trim()) {
-                log('请先输入Lua源码', 'error');
-                return;
-            }
+        <button class="btn btn-primary" id="obfuscateBtn">⚔ 开始混淆</button>
 
-            const intensity = document.getElementById('intensitySlider').value;
-            const config = JSON.parse(getMaximumConfig());
-            config.intensity = 'Level' + intensity;
+        <div class="btn-row">
+          <button class="btn btn-secondary" id="loadSample">载入示例</button>
+          <button class="btn btn-secondary" id="clearBtn">清空</button>
+        </div>
+      </div>
+    </div>
 
-            log('开始混淆... 强度: ' + intensity);
-            const start = performance.now();
+    <!-- Output -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">混淆输出</span>
+        <button class="btn btn-secondary" id="downloadBtn" style="padding:6px 14px;font-size:10px" disabled>⬇ 下载</button>
+      </div>
+      <div class="panel-body">
+        <div class="output-area" id="outputArea">
+<span style="color:#2a4a36">-- 等待输出…
+-- 在左侧配置模块后，点击「开始混淆」</span>
+        </div>
+      </div>
+    </div>
+  </div>
 
-            try {
-                const result = obfuscate(code, JSON.stringify(config));
-                const duration = performance.now() - start;
+  <!-- Stats -->
+  <div class="stats-panel">
+    <div class="stats-grid">
+      <div class="stat-item"><div class="stat-value" id="statSize">—</div><div class="stat-label">输出体积</div></div>
+      <div class="stat-item"><div class="stat-value" id="statRatio">—</div><div class="stat-label">膨胀倍率</div></div>
+      <div class="stat-item"><div class="stat-value" id="statStrings">0</div><div class="stat-label">加密字符串</div></div>
+      <div class="stat-item"><div class="stat-value" id="statConsts">0</div><div class="stat-label">混淆常量</div></div>
+      <div class="stat-item"><div class="stat-value" id="statRenames">0</div><div class="stat-label">重命名标识符</div></div>
+      <div class="stat-item"><div class="stat-value" id="statExprs">0</div><div class="stat-label">分解表达式</div></div>
+    </div>
+  </div>
 
-                if (result.success) {
-                    document.getElementById('outputCode').value = result.output;
-                    log('混淆完成! 耗时: ' + duration.toFixed(2) + 'ms, 输出: ' + result.output.length + '字节', 'success');
-                } else {
-                    log('混淆失败: ' + result.error, 'error');
-                }
-            } catch (e) {
-                log('混淆异常: ' + e.message, 'error');
-            }
-        });
+  <!-- Terminal -->
+  <div class="terminal" id="terminalLog">
+    <div class="line ok">冈格尼尔 Rust 核心 v7.0 初始化中...</div>
+    <div class="line">目标 Lua 5.1 — Delta Executor / Gloop 引擎兼容</div>
+    <div class="line">等待 WASM 加载…</div>
+  </div>
 
-        document.getElementById('intensitySlider').addEventListener('input', function() {
-            document.getElementById('intensityVal').textContent = this.value;
-        });
+  <footer>
+    冈格尼尔计划 // 个人专用防御性混淆框架 // Rust 核心（238 项技术）// 网页版 = CLI 版同一引擎
+  </footer>
+</div>
 
-        document.getElementById('loadSampleBtn').addEventListener('click', () => {
-            document.getElementById('inputCode').value = `-- Gungnir 测试脚本
+<script>
+// ============================================================
+// GUNGNIR WEB EDITION v7.0.0 — Rust + WASM 核心 · 238 Techniques
+// ============================================================
+
+// ---------- Matrix Rain Canvas ----------
+(function() {
+  const canvas = document.getElementById('matrixCanvas');
+  const ctx = canvas.getContext('2d');
+  let w, h, cols, drops;
+  const chars = 'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン0123456789';
+  function resize() {
+    w = canvas.width = window.innerWidth;
+    h = canvas.height = window.innerHeight;
+    cols = Math.floor(w / 18);
+    drops = new Array(cols).fill(0);
+  }
+  resize();
+  window.addEventListener('resize', resize);
+  setInterval(() => {
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+    ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = '#00ff41';
+    ctx.font = '14px monospace';
+    for (let i = 0; i < drops.length; i++) {
+      const text = chars[Math.floor(Math.random() * chars.length)];
+      ctx.fillText(text, i * 18, drops[i] * 18);
+      if (drops[i] * 18 > h && Math.random() > 0.975) drops[i] = 0;
+      drops[i]++;
+    }
+  }, 50);
+})();
+
+// ---------- Terminal log ----------
+function term(msg, type) {
+  const log = document.getElementById('terminalLog');
+  const div = document.createElement('div');
+  div.className = 'line' + (type ? ' ' + type : '');
+  div.textContent = msg;
+  log.appendChild(div);
+  log.scrollTop = log.scrollHeight;
+  return div;
+}
+
+// ---------- Busy indicator ----------
+const busy = document.getElementById('busyBar');
+function setBusy(on) { busy.classList.toggle('active', on); }
+
+// ---------- Input helpers ----------
+const inputCode = document.getElementById('inputCode');
+const inputMeta = document.getElementById('inputMeta');
+function updateMeta() {
+  inputMeta.textContent = new Blob([inputCode.value]).size + ' 字节';
+}
+inputCode.addEventListener('input', updateMeta);
+
+// ---------- Upload / Drag-drop ----------
+const fileInput = document.getElementById('fileInput');
+const uploadBtn = document.getElementById('uploadBtn');
+const dropZone = document.getElementById('dropZone');
+uploadBtn.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', (e) => {
+  const f = e.target.files[0];
+  if (!f) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    inputCode.value = reader.result;
+    updateMeta();
+    term('已载入文件: ' + f.name + ' (' + reader.result.length + ' 字符)');
+  };
+  reader.readAsText(f);
+  fileInput.value = '';
+});
+['dragover', 'dragenter'].forEach(ev => dropZone.addEventListener(ev, (e) => {
+  e.preventDefault(); dropZone.classList.add('dragover');
+}));
+['dragleave', 'drop'].forEach(ev => dropZone.addEventListener(ev, (e) => {
+  e.preventDefault(); dropZone.classList.remove('dragover');
+}));
+dropZone.addEventListener('drop', (e) => {
+  const f = e.dataTransfer.files[0];
+  if (!f) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    inputCode.value = reader.result;
+    updateMeta();
+    term('已拖入文件: ' + f.name + ' (' + reader.result.length + ' 字符)');
+  };
+  reader.readAsText(f);
+});
+
+// ---------- Intensity / Seed ----------
+const intensitySlider = document.getElementById('intensitySlider');
+const intensityVal = document.getElementById('intensityVal');
+intensitySlider.addEventListener('input', () => { intensityVal.textContent = intensitySlider.value; });
+const seedInput = document.getElementById('seedInput');
+document.getElementById('seedRandom').addEventListener('click', () => {
+  seedInput.value = Math.floor(Math.random() * 0x7fffffff);
+});
+
+// ---------- Module toggles ----------
+document.querySelectorAll('.module-toggle').forEach(el => {
+  el.addEventListener('click', () => el.classList.toggle('active'));
+});
+
+// ---------- Sample / Clear ----------
+const sampleCode = `-- Gungnir 测试脚本
 local function add(a, b)
   return a + b
 end
@@ -249,10 +582,102 @@ print("Results:", add(x, y), factorial(5))
 for i = 1, 10 do
   print("Loop:", i)
 end`;
-            log('已加载示例代码');
-        });
+document.getElementById('loadSample').addEventListener('click', () => {
+  inputCode.value = sampleCode;
+  updateMeta();
+  term('已载入示例代码');
+});
+document.getElementById('clearBtn').addEventListener('click', () => {
+  inputCode.value = '';
+  document.getElementById('outputArea').innerHTML = '<span style="color:#2a4a36">-- 已清空</span>';
+  document.getElementById('downloadBtn').disabled = true;
+  updateMeta();
+});
 
-        main();
-    </script>
+// ---------- WASM Engine ----------
+let wasmReady = false;
+let wasm = null;
+const obfuscateBtn = document.getElementById('obfuscateBtn');
+const downloadBtn = document.getElementById('downloadBtn');
+
+async function initWasm() {
+  try {
+    const mod = await import('./pkg/gungnir.js');
+    await mod.default();
+    wasm = mod;
+    wasmReady = true;
+    document.getElementById('versionTag').textContent = mod.getVersion();
+    document.getElementById('moduleCount').textContent = mod.getTotalTechniques();
+    obfuscateBtn.disabled = false;
+    term('Rust WASM 核心加载成功 · 版本 ' + mod.getVersion() + ' · ' + mod.getTotalTechniques() + ' 项技术', 'ok');
+  } catch (e) {
+    term('WASM 加载失败: ' + e.message, 'err');
+    obfuscateBtn.disabled = true;
+    obfuscateBtn.textContent = 'WASM 加载失败';
+  }
+}
+
+// ---------- Obfuscate ----------
+obfuscateBtn.addEventListener('click', () => {
+  if (!wasmReady || !wasm) { term('引擎未就绪', 'err'); return; }
+  const code = inputCode.value;
+  if (!code.trim()) { term('请先输入 Lua 源码', 'err'); return; }
+
+  const intensity = parseInt(intensitySlider.value, 10);
+  const seed = parseInt(seedInput.value, 10) || 1337;
+  const config = JSON.parse(wasm.getMaximumConfig());
+  config.intensity = 'Level' + intensity;
+  config.seed = seed;
+
+  term('开始混淆… 强度 ' + intensity + ' · 种子 ' + seed);
+  setBusy(true);
+  try {
+    const start = performance.now();
+    const result = wasm.obfuscate(code, JSON.stringify(config));
+    const elapsed = performance.now() - start;
+
+    if (result.success) {
+      const out = result.output;
+      const outArea = document.getElementById('outputArea');
+      outArea.textContent = out;
+      downloadBtn.disabled = false;
+
+      const inBytes = new Blob([code]).size;
+      const outBytes = new Blob([out]).size;
+      document.getElementById('statSize').textContent = outBytes.toLocaleString();
+      document.getElementById('statRatio').textContent = (outBytes / Math.max(1, inBytes)).toFixed(1) + 'x';
+      document.getElementById('statStrings').textContent = (out.match(/decrypt/g) || []).length;
+      document.getElementById('statConsts').textContent = (out.match(/MBA|mba|_const/g) || []).length;
+      document.getElementById('statRenames').textContent = (out.match(/local function/g) || []).length + (out.match(/local /g) || []).length;
+      document.getElementById('statExprs').textContent = (out.match(/function/g) || []).length;
+
+      term('混淆完成 · 耗时 ' + elapsed.toFixed(1) + 'ms · 输出 ' + outBytes.toLocaleString() + ' 字节（膨胀 ' + (outBytes / Math.max(1, inBytes)).toFixed(1) + 'x）', 'ok');
+    } else {
+      term('混淆失败: ' + result.error, 'err');
+    }
+  } catch (e) {
+    term('混淆异常: ' + e.message, 'err');
+  } finally {
+    setBusy(false);
+  }
+});
+
+// ---------- Download ----------
+downloadBtn.addEventListener('click', () => {
+  const out = document.getElementById('outputArea').textContent;
+  if (!out) return;
+  const blob = new Blob([out], { type: 'text/plain;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'gungnir_obfuscated_' + Date.now() + '.lua';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  term('已下载混淆结果');
+});
+
+// ---------- Init ----------
+initWasm();
+updateMeta();
+</script>
 </body>
 </html>
