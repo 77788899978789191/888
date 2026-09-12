@@ -1,6 +1,5 @@
-[build]
-rustflags = ["-C", "linker=cc", "-C", "link-arg=-fuse-ld=bfd"]
-
+# 注意：此配置仅针对本沙箱环境（rust-lld 不可用）。
+# 不要添加全局 [build] rustflags —— 那会破坏 GitHub Actions 上的 wasm32 构建。
 [target.x86_64-unknown-linux-gnu]
 linker = "cc"
 rustflags = ["-C", "link-arg=-fuse-ld=bfd"]
