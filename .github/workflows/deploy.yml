@@ -3,6 +3,9 @@ name: Build and Deploy Rust WASM
 on:
   push:
     branches: [ main ]
+    paths-ignore:
+      - 'docs/pkg/**'
+      - 'docs/version.json'
   workflow_dispatch:
 
 permissions:
@@ -41,13 +44,13 @@ jobs:
       - name: Generate version info
         run: |
           echo '{
-            "version": "6.0.'${{ github.run_number }}'",
+            "version": "7.0.'${{ github.run_number }}'",
             "buildDate": "'$(date -u +"%Y-%m-%dT%H:%M:%SZ")'",
             "timestamp": '$(date +%s)',
             "commit": "'${{ github.sha }}'",
             "runNumber": ${{ github.run_number }},
             "engine": "Rust + WASM",
-            "techniques": 162
+            "techniques": 238
           }' > version.json
 
       - name: Copy build artifacts to docs
@@ -58,32 +61,30 @@ jobs:
           fi
           cp web/index.html docs/index.html 2>/dev/null || true
           cp version.json docs/version.json 2>/dev/null || true
+          echo "=== docs content ==="
           ls -la docs/
+          echo "=== docs/pkg content ==="
+          ls -la docs/pkg/
 
-      - name: Setup Pages
-        uses: actions/configure-pages@v4
-
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: ./docs
+      # ===== 关键步骤：把 WASM 产物提交回 main 分支的 /docs =====
+      # GitHub Pages 部署源为 main 分支 /docs 目录，
+      # 因此必须将 docs/pkg 提交回仓库，网页才能加载 WASM。
+      - name: Commit WASM artifacts back to main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/pkg docs/version.json docs/index.html version.json
+          git diff --cached --quiet && echo "No changes to commit" || {
+            git commit -m "chore: deploy WASM build artifacts [skip ci]"
+            git push origin main
+            echo "Pushed WASM artifacts to main"
+          }
 
       - name: Create version tag
         run: |
-          TAG="v6.0.${{ github.run_number }}-$(date +%Y%m%d)"
+          TAG="v7.0.${{ github.run_number }}-$(date +%Y%m%d)"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag -a "$TAG" -m "Rust WASM release $TAG" || true
           git push origin "$TAG" || true
         continue-on-error: true
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
