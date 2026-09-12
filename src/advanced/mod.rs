@@ -2,6 +2,22 @@
 //!
 //! 包含TT-13到TT-67以及TT-176到TT-200等前沿混淆技术实现。
 
+pub mod llm_defense;
+pub mod quantum_extended;
+pub mod vm_extended;
+pub mod control_flow_extended;
+pub mod mba_extended;
+pub mod misc;
+pub mod final_extensions;
+
+pub use llm_defense::*;
+pub use quantum_extended::*;
+pub use vm_extended::*;
+pub use control_flow_extended::*;
+pub use mba_extended::*;
+pub use misc::*;
+pub use final_extensions::*;
+
 use rand::Rng;
 use rand_chacha::ChaCha20Rng;
 use rand::SeedableRng;

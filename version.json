@@ -1,7 +1,7 @@
 {
-  "version": "6.0.0",
+  "version": "7.0.0",
   "engine": "Rust + WASM",
-  "techniques": 162,
+  "techniques": 238,
   "buildDate": "2026-09-12",
-  "description": "Gungnir - Ultimate Lua 5.1 Obfuscator (Rust version)"
+  "description": "Gungnir - Ultimate Lua 5.1 Obfuscator (Rust version) - 238 Techniques"
 }
