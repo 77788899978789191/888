@@ -231,8 +231,8 @@ mod tests {
 
     #[test]
     fn test_stats_creation() {
-        let stats = ObfuscationStats::new(200);
-        assert_eq!(stats.total_count, 200);
+        let stats = ObfuscationStats::new(crate::TOTAL_TECHNIQUES);
+        assert_eq!(stats.total_count, crate::TOTAL_TECHNIQUES);
     }
 
     #[test]
@@ -279,9 +279,9 @@ mod tests {
 
     #[test]
     fn test_report_generation() {
-        let stats = ObfuscationStats::new(200);
+        let stats = ObfuscationStats::new(crate::TOTAL_TECHNIQUES);
         let report = stats.generate_report();
         assert!(report.contains("GUNGNIR OBFUSCATION REPORT"));
-        assert!(report.contains("200"));
+        assert!(report.contains("238"));
     }
 }

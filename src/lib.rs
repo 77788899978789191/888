@@ -1,6 +1,6 @@
 //! Gungnir - Ultimate Lua 5.1 Obfuscator
 //!
-//! 200+项混淆技术，支持WASM、CLI、安卓、iOS多端部署。
+//! 238项混淆技术，支持WASM、CLI、安卓、iOS多端部署。
 //!
 //! # 示例
 //!
@@ -25,6 +25,7 @@ pub mod delivery;
 pub mod quantum;
 pub mod advanced;
 pub mod lua;
+pub mod utils;
 pub mod wasm;
 
 // 核心导出

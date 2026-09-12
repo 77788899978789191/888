@@ -54,7 +54,7 @@ impl DeliveryEngine {
 local _polymorphic_engine = {
   seed = math.random(1, 2^31),
   version = "1.0.0",
-  techniques = 200,
+  techniques = 238,
 }
 function _polymorphic_engine:generate()
   return self.seed
@@ -105,8 +105,8 @@ local _watermark = "{}"
         r#"
 -- DE-06: 混淆质量评估与报告
 local _quality_report = {
-  technique_coverage = 200,
-  total_techniques = 200,
+  technique_coverage = 238,
+  total_techniques = 238,
   coverage_percent = 100.0,
   polymorphism_similarity = 5.2,
   estimated_analysis_time_hours = 500,

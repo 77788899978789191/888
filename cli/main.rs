@@ -13,7 +13,7 @@ use std::time::Instant;
 fn build_cli() -> Command {
     Command::new("gungnir-cli")
         .version(VERSION)
-        .about("Gungnir - Ultimate Lua 5.1 Obfuscator (200+ techniques)")
+        .about("Gungnir - Ultimate Lua 5.1 Obfuscator (238 techniques)")
         .arg(
             Arg::new("INPUT")
                 .help("输入Lua文件路径")

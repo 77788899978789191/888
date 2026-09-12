@@ -150,7 +150,7 @@ impl ResilienceEvaluator {
         // 控制流复杂度（基于膨胀率）
         self.scores.insert("control_flow_complexity".to_string(), (inflation_ratio / 100.0).min(1.0) * 100.0);
         // 数据加密强度（基于技术数量）
-        self.scores.insert("data_encryption_strength".to_string(), (technique_count as f64 / 200.0).min(1.0) * 100.0);
+        self.scores.insert("data_encryption_strength".to_string(), (technique_count as f64 / crate::TOTAL_TECHNIQUES as f64).min(1.0) * 100.0);
         // VM保护级别
         self.scores.insert("vm_protection_level".to_string(), 85.0);
         // 反调试有效性

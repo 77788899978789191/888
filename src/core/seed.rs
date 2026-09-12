@@ -4,6 +4,7 @@
 //! 种子拆分为16个片段，分散存储在16个独立闭包中。
 //! 运行时从16个位置读取并重组校验，不匹配则触发陷阱循环。
 
+use crate::utils::safe_now_nanos;
 use rand::RngCore;
 use rand_chacha::ChaCha20Rng;
 use rand::SeedableRng;
@@ -32,11 +33,7 @@ impl BuildSeed {
         entropy.extend_from_slice(user_salt.as_bytes());
         entropy.extend_from_slice(&tick.to_le_bytes());
         entropy.extend_from_slice(&place_id.to_le_bytes());
-        entropy.extend_from_slice(&std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_nanos()
-            .to_le_bytes());
+        entropy.extend_from_slice(&safe_now_nanos().to_le_bytes());
 
         // SHA-256派生初始种子
         let mut hasher = Sha256::new();

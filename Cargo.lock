@@ -188,6 +188,7 @@ dependencies = [
  "env_logger",
  "getrandom",
  "hex",
+ "js-sys",
  "lazy_static",
  "log",
  "parking_lot",

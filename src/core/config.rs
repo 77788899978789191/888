@@ -171,7 +171,7 @@ impl Default for ObfuscatorConfig {
             max_coroutines: 300,
             max_metatable_depth: 16,
             max_recursion_depth: 1000,
-            version: String::from("6.0.0"),
+            version: crate::VERSION.to_string(),
         }
     }
 }
@@ -193,7 +193,7 @@ impl ObfuscatorConfig {
             max_coroutines: 300,
             max_metatable_depth: 16,
             max_recursion_depth: 1000,
-            version: String::from("6.0.0"),
+            version: crate::VERSION.to_string(),
         }
     }
 

@@ -17,6 +17,7 @@
 //! VM-22: 字节码编译与反序列化
 
 use crate::core::seed::BuildSeed;
+use crate::utils::safe_now_secs;
 use crate::vm::core::VMProgram;
 use rand::Rng;
 use rand_chacha::ChaCha20Rng;
@@ -345,10 +346,7 @@ impl PolymorphismReport {
             encryption_key_hash: format!("{:x}", seed.derive_subseed(b"key").iter().map(|b| *b as u32).sum::<u32>()),
             register_scheme: format!("scheme_{}", seed.derive_subseed(b"register")[0] % 8),
             structure_hash: structure_hash.iter().map(|b| format!("{:02x}", b)).collect(),
-            timestamp: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs(),
+            timestamp: safe_now_secs(),
         }
     }
 

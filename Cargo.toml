@@ -49,6 +49,7 @@ web-sys = { version = "=0.3.68", optional = true, features = ["console"] }
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom = { version = "=0.2.17", features = ["js"] }
 web-sys = { version = "=0.3.68", features = ["console"] }
+js-sys = { version = "=0.3.68" }
 
 [features]
 default = []
