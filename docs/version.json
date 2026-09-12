@@ -1,9 +1,9 @@
 {
-  "version": "7.0.23",
-  "buildDate": "2026-09-12T01:42:51Z",
-  "timestamp": 1789177371,
-  "commit": "21b6938f07cad6aae036cb61faeaa1de14652f1a",
-  "runNumber": 23,
+  "version": "7.0.25",
+  "buildDate": "2026-09-12T02:48:38Z",
+  "timestamp": 1789181318,
+  "commit": "bd0a033eae7a63ad4d87944a575a5228eba642be",
+  "runNumber": 25,
   "engine": "Rust + WASM",
   "techniques": 238
 }
