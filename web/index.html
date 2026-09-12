@@ -600,16 +600,22 @@ let wasm = null;
 const obfuscateBtn = document.getElementById('obfuscateBtn');
 const downloadBtn = document.getElementById('downloadBtn');
 
+// 缓存破坏：每次部署版本变化时强制浏览器重新加载 WASM
+const WASM_VERSION = '7.0.22';
+
 async function initWasm() {
   try {
-    const mod = await import('./pkg/gungnir.js');
+    term('加载 WASM 模块 (v' + WASM_VERSION + ')…');
+    const mod = await import('./pkg/gungnir.js?v=' + WASM_VERSION);
     await mod.default();
     wasm = mod;
     wasmReady = true;
-    document.getElementById('versionTag').textContent = mod.getVersion();
-    document.getElementById('moduleCount').textContent = mod.getTotalTechniques();
+    const ver = mod.getVersion();
+    const tech = mod.getTotalTechniques();
+    document.getElementById('versionTag').textContent = ver;
+    document.getElementById('moduleCount').textContent = tech;
     obfuscateBtn.disabled = false;
-    term('Rust WASM 核心加载成功 · 版本 ' + mod.getVersion() + ' · ' + mod.getTotalTechniques() + ' 项技术', 'ok');
+    term('Rust WASM 核心加载成功 · 版本 ' + ver + ' · ' + tech + ' 项技术', 'ok');
   } catch (e) {
     term('WASM 加载失败: ' + e.message, 'err');
     obfuscateBtn.disabled = true;
