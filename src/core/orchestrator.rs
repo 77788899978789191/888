@@ -241,11 +241,25 @@ impl Orchestrator {
         self.stats.flattened_blocks = flattened.statements.len();
         self.stats.opaque_predicates = cf_obf.opaque_predicate_count();
 
+        // CF-11: 协程风暴（真正创建并调度协程，阈值 ≤300）
+        let coroutine_count = self.config.max_coroutines.min(300).min(30);
+        let coroutines = cf_obf.generate_coroutine_storm(coroutine_count);
+        let coro_block = crate::lua::ast::Block {
+            statements: coroutines,
+            return_statement: None,
+        };
+        let coro_lua = crate::lua::writer::write_lua(&coro_block);
+        output_parts.push(format!("-- CF-11: Coroutine storm\n{}", coro_lua));
+        self.stats.coroutines_created = coroutine_count;
+
         // 数据混淆
         let mut data_obf = DataObfuscator::new(seed_u64.wrapping_add(2));
         self.stats.encrypted_strings = 15;
         self.stats.mba_expressions = 40;
         self.stats.string_encryption = true;
+        // DC-11: 元表深度代理链（真正的 setmetatable 链）
+        output_parts.push(data_obf.generate_metatable_chain(3));
+        output_parts.push(data_obf.generate_weak_table_data_flow());
 
         // 作用域混淆
         let mut scope_obf = ScopeObfuscator::new(seed_u64.wrapping_add(3));
@@ -267,8 +281,7 @@ impl Orchestrator {
         let mut platform = PlatformSpecific::new(seed_u64.wrapping_add(6));
         output_parts.push(platform.generate_remote_encryption());
         output_parts.push(platform.generate_scheduler_scramble());
-        self.stats.coroutines_created = 50;
-        self.stats.metatables_used = 15;
+        self.stats.metatables_used = 3;
 
         // 量子混淆
         let quantum = QuantumObfuscator::new(seed_u64.wrapping_add(7));

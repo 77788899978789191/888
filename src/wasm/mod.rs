@@ -109,6 +109,7 @@ pub fn get_total_techniques() -> usize {
     TOTAL_TECHNIQUES
 }
 
+
 /// 获取默认配置（JSON格式）
 #[cfg(feature = "wasm")]
 #[wasm_bindgen(js_name = "getDefaultConfig")]
@@ -133,7 +134,7 @@ mod tests {
 
     #[test]
     fn test_version() {
-        assert_eq!(VERSION, "7.0.0");
+        assert_eq!(VERSION, "8.0.0");
         assert_eq!(TOTAL_TECHNIQUES, 238);
     }
 

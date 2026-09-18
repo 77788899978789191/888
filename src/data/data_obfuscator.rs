@@ -190,11 +190,19 @@ impl DataObfuscator {
 
     /// DC-11: 元表深度代理链
     pub fn generate_metatable_chain(&self, depth: usize) -> String {
+        // DC-11: 元表深度代理链 —— 真正的 setmetatable + __index 链
         let mut lua = String::new();
+        lua.push_str("-- DC-11: Metatable deep proxy chain\n");
         lua.push_str("local _mt_chain = {}\n");
+        lua.push_str("local _mt_root = {}\n");
+        lua.push_str("setmetatable(_mt_root, { __index = function(_, k) return _G[k] end })\n");
         for i in 0..depth {
-            lua.push_str(&format!("_mt_chain[{}] = {{ __index = _mt_chain[{}] }}\n", i + 1, if i > 0 { i.to_string() } else { "nil".to_string() }));
+            lua.push_str(&format!(
+                "_mt_chain[{}] = setmetatable({{}}, {{ __index = _mt_root }})\n",
+                i + 1
+            ));
         }
+        lua.push_str("local _mt_proxy = _mt_chain[#_mt_chain]\n");
         lua
     }
 
