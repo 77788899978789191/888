@@ -1,8 +1,8 @@
 {
-  "version": "8.1.0",
-  "buildDate": "2026-09-24T00:00:00Z",
-  "timestamp": 1789742389,
-  "commit": "0264575e67e259765f61a41fba35408877506b02",
+  "version": "8.1.27",
+  "buildDate": "2026-09-24T06:40:30Z",
+  "timestamp": 1790232030,
+  "commit": "4f1f3e1d5f2f5945ae740b01139ccd2ce7d7d5e7",
   "runNumber": 27,
   "engine": "Rust + WASM",
   "techniques": 238
