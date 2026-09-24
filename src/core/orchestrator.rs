@@ -3,6 +3,7 @@
 //! 全局调度器，按依赖顺序执行所有混淆模块。
 
 use crate::core::config::{Intensity, ObfuscatorConfig};
+use crate::core::deep_obfuscator::DeepObfuscator;
 use crate::core::seed::BuildSeed;
 use crate::core::stats::ObfuscationStats;
 use crate::lua::parser::Parser;
@@ -298,12 +299,15 @@ impl Orchestrator {
         output_parts.push(delivery.generate_watermark());
         output_parts.push(delivery.generate_quality_report());
 
-        // 代码生成阶段：生成最终的混淆代码
-        let original_code = write_lua_minified(&block);
+        // 商业级深度混淆：真实变换 AST（重命名+字符串加密池+状态机扁平化）
+        let mut deep = DeepObfuscator::new(seed_u64.wrapping_add(11));
+        let (deep_logic, pool_runtime, deep_stats) = deep.deep_obfuscate(&block);
+        self.stats.encrypted_strings = deep_stats.encrypted_strings;
+        output_parts.push(pool_runtime);
 
-        // 生成最终输出
+        // 代码生成阶段：生成最终的混淆代码（逻辑主体为深度混淆后的代码）
         self.stats.calculate_strength_score();
-        let output = self.generate_final_output(code, &output_parts, &original_code)?;
+        let output = self.generate_final_output(code, &output_parts, &deep_logic)?;
 
         // 计算最终统计
         self.stats.output_size = output.len();
@@ -372,18 +376,14 @@ impl Orchestrator {
         output.push_str("  end\n");
         output.push_str("end\n\n");
 
-        // 原始代码（在实际混淆中应被VM字节码完全替代）
-        output.push_str("-- === Original Logic (protected by VM) ===\n");
-        output.push_str("local _gungnir_original = function()\n");
-        for line in original_code.lines() {
-            output.push_str(&format!("  {}\n", line));
-        }
-        output.push_str("end\n\n");
+        // 深度混淆后的逻辑主体（字符串加密池 + 状态机扁平化 + 垃圾代码交织）
+        output.push_str("-- === Obfuscated Logic (string pool + flattened state machines) ===\n");
+        output.push_str(_ast_code);
+        output.push('\n');
 
         // 执行入口
         output.push_str("-- === Main Entry ===\n");
         output.push_str("_gungnir_execute()\n");
-        output.push_str("_gungnir_original()\n");
         output.push_str(&format!(
             "-- Execution time: {:.3}ms\n",
             (self.stats.duration.unwrap_or_default()).as_secs_f64() * 1000.0

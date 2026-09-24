@@ -56,13 +56,36 @@ impl ControlFlowObfuscator {
             values: Some(vec![Expression::Integer(state_init as i64)]),
         });
 
-        // 将原始语句转换为状态机case
-        let mut cases = Vec::new();
-        let mut current_state = state_init;
+        // 提升局部变量声明到状态机顶部（跨 case 引用作用域保持）
+        let mut hoisted: Vec<String> = Vec::new();
+        collect_and_hoist_locals(&block.statements, &mut hoisted);
+        if !hoisted.is_empty() {
+            statements.push(Statement::LocalDeclaration {
+                names: hoisted,
+                values: None,
+            });
+        }
 
-        for stmt in &block.statements {
-            cases.push((current_state, vec![stmt.clone()]));
-            current_state = self.next_state();
+        // 预分配状态值：cases[i] 用 states[i]，流转到 states[i+1]（避免状态错配死循环）
+        let mut states: Vec<u32> = Vec::with_capacity(block.statements.len() + 2);
+        states.push(state_init);
+        for _ in &block.statements {
+            states.push(self.next_state());
+        }
+        let mut cases = Vec::new();
+        for (i, stmt) in block.statements.iter().enumerate() {
+            let mut converted = Vec::new();
+            let mut clone = stmt.clone();
+            convert_locals_to_assignments(&mut clone);
+            converted.push(clone);
+            cases.push((states[i], converted));
+        }
+        // return 语句作为最后一条 case（避免 return 引用 case 内局部变量而丢失）
+        if let Some(ret) = &block.return_statement {
+            if !ret.is_empty() {
+                let last_state = states[block.statements.len()];
+                cases.push((last_state, vec![Statement::Return(ret.clone())]));
+            }
         }
 
         // 生成while循环
@@ -71,7 +94,7 @@ impl ControlFlowObfuscator {
         // 生成if-elseif链（Lua没有switch，用if-elseif模拟）
         let mut if_chain: Option<Statement> = None;
 
-        for (state, stmts) in cases.iter().rev() {
+        for (i, (state, stmts)) in cases.iter().rev().enumerate() {
             let condition = Expression::BinaryOp {
                 op: BinaryOperator::Equal,
                 left: Box::new(Expression::Variable(state_var.clone())),
@@ -80,12 +103,24 @@ impl ControlFlowObfuscator {
 
             let mut then_block = Block::default();
             then_block.statements = stmts.clone();
-            // 设置下一个状态
-            let next_state = self.next_state();
-            then_block.statements.push(Statement::Assignment {
-                targets: vec![Expression::Variable(state_var.clone())],
-                values: vec![Expression::Integer(next_state as i64)],
-            });
+            // 设置下一个状态：查预分配状态表（正向顺序下标 = cases.len()-1-i）
+            let target_idx = cases.len() - 1 - i;
+            let next_state = if target_idx + 1 < states.len() {
+                states[target_idx + 1]
+            } else {
+                0
+            };
+            // return 语句是块的终止语句，其后不能再跟语句（Lua 5.1 语法）
+            let has_return = stmts
+                .last()
+                .map(|s| matches!(s, Statement::Return(_)))
+                .unwrap_or(false);
+            if !has_return {
+                then_block.statements.push(Statement::Assignment {
+                    targets: vec![Expression::Variable(state_var.clone())],
+                    values: vec![Expression::Integer(next_state as i64)],
+                });
+            }
 
             if_chain = Some(Statement::If {
                 condition,
@@ -118,7 +153,7 @@ impl ControlFlowObfuscator {
 
         Block {
             statements,
-            return_statement: block.return_statement.clone(),
+            return_statement: None, // return 已并入状态机最后 case
         }
     }
 
@@ -854,5 +889,115 @@ mod tests {
         };
         let result = obf.scramble_control_flow(&block);
         assert!(result.statements.len() > block.statements.len());
+    }
+}
+
+/// 递归收集所有局部变量名（用于提升到状态机顶部）
+fn collect_and_hoist_locals(stmts: &[Statement], out: &mut Vec<String>) {
+    fn walk(s: &Statement, out: &mut Vec<String>) {
+        match s {
+            Statement::LocalDeclaration { names, .. } => {
+                for n in names {
+                    if !out.contains(n) {
+                        out.push(n.clone());
+                    }
+                }
+            }
+            Statement::If {
+                then_block,
+                else_if_blocks,
+                else_block,
+                ..
+            } => {
+                for st in &then_block.statements {
+                    walk(st, out);
+                }
+                for (_, b) in else_if_blocks {
+                    for st in &b.statements {
+                        walk(st, out);
+                    }
+                }
+                if let Some(b) = else_block {
+                    for st in &b.statements {
+                        walk(st, out);
+                    }
+                }
+            }
+            Statement::While { body, .. }
+            | Statement::Repeat { body, .. }
+            | Statement::Do(body) => {
+                for st in &body.statements {
+                    walk(st, out);
+                }
+            }
+            Statement::ForNumeric { body, .. } | Statement::ForGeneric { body, .. } => {
+                for st in &body.statements {
+                    walk(st, out);
+                }
+            }
+            Statement::FunctionDeclaration { body, .. } | Statement::LocalFunctionDeclaration { body, .. } => {
+                for st in &body.statements {
+                    walk(st, out);
+                }
+            }
+            _ => {}
+        }
+    }
+    for s in stmts {
+        walk(s, out);
+    }
+}
+
+/// 递归把 LocalDeclaration 转换为赋值（配合提升）
+fn convert_locals_to_assignments(stmt: &mut Statement) {
+    match stmt {
+        Statement::LocalDeclaration { names, values } => {
+            let targets: Vec<Expression> = names
+                .iter()
+                .map(|n| Expression::Variable(n.clone()))
+                .collect();
+            let vals = values.clone().unwrap_or_else(|| {
+                names.iter().map(|_| Expression::Nil).collect()
+            });
+            *stmt = Statement::Assignment { targets, values: vals };
+        }
+        Statement::If {
+            then_block,
+            else_if_blocks,
+            else_block,
+            ..
+        } => {
+            for s in &mut then_block.statements {
+                convert_locals_to_assignments(s);
+            }
+            for (_, b) in else_if_blocks {
+                for s in &mut b.statements {
+                    convert_locals_to_assignments(s);
+                }
+            }
+            if let Some(b) = else_block {
+                for s in &mut b.statements {
+                    convert_locals_to_assignments(s);
+                }
+            }
+        }
+        Statement::While { body, .. }
+        | Statement::Repeat { body, .. }
+        | Statement::Do(body) => {
+            for s in &mut body.statements {
+                convert_locals_to_assignments(s);
+            }
+        }
+        Statement::ForNumeric { body, .. } | Statement::ForGeneric { body, .. } => {
+            for s in &mut body.statements {
+                convert_locals_to_assignments(s);
+            }
+        }
+        Statement::FunctionDeclaration { body, .. } | Statement::LocalFunctionDeclaration { body, .. } => {
+            for s in &mut body.statements {
+                convert_locals_to_assignments(s);
+            }
+        }
+        _ => {}
     }
 }

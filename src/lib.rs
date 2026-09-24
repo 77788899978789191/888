@@ -35,7 +35,7 @@ pub use core::seed::{BuildSeed, LayoutParams, OpcodePosition, OperandPosition};
 pub use core::stats::{ObfuscationStats, TechniqueStat};
 
 /// 库版本号
-pub const VERSION: &str = "8.0.0";
+pub const VERSION: &str = "8.1.0";
 
 /// 总技术数量
 pub const TOTAL_TECHNIQUES: usize = 238;
@@ -68,7 +68,7 @@ mod tests {
 
     #[test]
     fn test_version() {
-        assert_eq!(VERSION, "8.0.0");
+        assert_eq!(VERSION, "8.1.0");
     }
 
     #[test]

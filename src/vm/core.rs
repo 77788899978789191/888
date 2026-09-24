@@ -153,6 +153,10 @@ impl OpcodeMapping {
             lua.push_str(&format!("  [{}] = 0x{:04x}, -- {}\n", code, code, opcode.name()));
         }
         lua.push_str("}\n");
+        // 命名别名：使 _opcode_map.ADD 等字段访问可用（与 codegen 的 handler 注册一致）
+        for (opcode, &code) in &self.forward {
+            lua.push_str(&format!("_opcode_map.{} = _opcode_map[{}]\n", opcode.name(), code));
+        }
         lua
     }
 }

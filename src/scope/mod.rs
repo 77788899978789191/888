@@ -22,35 +22,12 @@ impl ScopeObfuscator {
         }
     }
 
-    /// SC-01: 全标识符重命名
+    /// SC-01: 全标识符重命名（递归遍历 + 引用同步替换）
     pub fn rename_identifiers(&mut self, block: &mut Block) {
-        for stmt in &mut block.statements {
-            self.rename_in_statement(stmt);
-        }
+        self.visit_block(block);
     }
 
-    fn rename_in_statement(&mut self, stmt: &mut Statement) {
-        match stmt {
-            Statement::LocalDeclaration { names, .. } => {
-                for name in names {
-                    let new_name = self.generate_obfuscated_name();
-                    self.rename_map.insert(name.clone(), new_name.clone());
-                    *name = new_name;
-                }
-            }
-            Statement::LocalFunctionDeclaration { name, .. } => {
-                let new_name = self.generate_obfuscated_name();
-                self.rename_map.insert(name.clone(), new_name.clone());
-                *name = new_name;
-            }
-            Statement::FunctionDeclaration { name, .. } => {
-                let new_name = self.generate_obfuscated_name();
-                *name = FunctionName::simple(&new_name);
-            }
-            _ => {}
-        }
-    }
-
+    /// 生成混淆名
     fn generate_obfuscated_name(&mut self) -> String {
         let chars = ['_', '0', 'O', 'o', 'I', 'l', '1'];
         let length = self.rng.gen_range(10..20);
@@ -60,6 +37,8 @@ impl ScopeObfuscator {
         }
         name
     }
+
+
 
     /// SC-02: 全局变量暗物质隐藏
     pub fn hide_globals(&self, code: &str) -> String {
@@ -211,5 +190,166 @@ mod tests {
     #[test]
     fn test_technique_count() {
         assert_eq!(SCOPE_TECHNIQUE_COUNT, 11);
+    }
+}
+
+impl AstVisitor for ScopeObfuscator {
+    fn visit_statement(&mut self, stmt: &mut Statement) {
+        // 1. 声明名重命名
+        match stmt {
+            Statement::LocalDeclaration { names, .. } => {
+                for name in names {
+                    let new_name = self.generate_obfuscated_name();
+                    self.rename_map.insert(name.clone(), new_name.clone());
+                    *name = new_name;
+                }
+            }
+            Statement::LocalFunctionDeclaration { name, .. } => {
+                let new_name = self.generate_obfuscated_name();
+                self.rename_map.insert(name.clone(), new_name.clone());
+                *name = new_name;
+            }
+            Statement::FunctionDeclaration { name, .. } => {
+                // 仅重命名简单函数名（foo），复杂路径（foo.bar）保持不变
+                if name.parts.len() == 1 && name.method.is_none() {
+                    let old = name.parts[0].clone();
+                    let new_name = self.generate_obfuscated_name();
+                    self.rename_map.insert(old, new_name.clone());
+                    name.parts[0] = new_name;
+                }
+            }
+            _ => {}
+        }
+        // 2. 递归遍历子结构
+        match stmt {
+            Statement::Assignment { targets, values } => {
+                for t in targets {
+                    self.visit_expression(t);
+                }
+                for v in values {
+                    self.visit_expression(v);
+                }
+            }
+            Statement::LocalDeclaration { values, .. } => {
+                if let Some(vals) = values {
+                    for v in vals {
+                        self.visit_expression(v);
+                    }
+                }
+            }
+            Statement::If {
+                condition,
+                then_block,
+                else_if_blocks,
+                else_block,
+            } => {
+                self.visit_expression(condition);
+                self.visit_block(then_block);
+                for (cond, block) in else_if_blocks {
+                    self.visit_expression(cond);
+                    self.visit_block(block);
+                }
+                if let Some(block) = else_block {
+                    self.visit_block(block);
+                }
+            }
+            Statement::While { condition, body } => {
+                self.visit_expression(condition);
+                self.visit_block(body);
+            }
+            Statement::Repeat { body, condition } => {
+                self.visit_block(body);
+                self.visit_expression(condition);
+            }
+            Statement::ForNumeric {
+                start,
+                end,
+                step,
+                body,
+                ..
+            } => {
+                self.visit_expression(start);
+                self.visit_expression(end);
+                if let Some(s) = step {
+                    self.visit_expression(s);
+                }
+                self.visit_block(body);
+            }
+            Statement::ForGeneric { iterators, body, .. } => {
+                for it in iterators {
+                    self.visit_expression(it);
+                }
+                self.visit_block(body);
+            }
+            Statement::Do(block) => self.visit_block(block),
+            Statement::Return(exprs) => {
+                for e in exprs {
+                    self.visit_expression(e);
+                }
+            }
+            Statement::FunctionCall(call) => {
+                self.visit_expression(&mut call.function);
+                for arg in &mut call.args {
+                    self.visit_expression(arg);
+                }
+            }
+            Statement::MethodCall { object, args, .. } => {
+                self.visit_expression(object);
+                for arg in args {
+                    self.visit_expression(arg);
+                }
+            }
+            Statement::FunctionDeclaration { body, .. } => self.visit_block(body),
+            Statement::LocalFunctionDeclaration { body, .. } => self.visit_block(body),
+            _ => {}
+        }
+    }
+
+    fn visit_expression(&mut self, expr: &mut Expression) {
+        // 变量引用按 rename_map 替换
+        if let Expression::Variable(v) = expr {
+            if let Some(n) = self.rename_map.get(v) {
+                *v = n.clone();
+            }
+        }
+        // 递归遍历子表达式
+        match expr {
+            Expression::Function { body, .. } => self.visit_block(body),
+            Expression::BinaryOp { left, right, .. } => {
+                self.visit_expression(left);
+                self.visit_expression(right);
+            }
+            Expression::UnaryOp { operand, .. } => self.visit_expression(operand),
+            Expression::TableAccess { table, key } => {
+                self.visit_expression(table);
+                self.visit_expression(key);
+            }
+            Expression::DotAccess { object, .. } => self.visit_expression(object),
+            Expression::FunctionCall(call) => {
+                self.visit_expression(&mut call.function);
+                for arg in &mut call.args {
+                    self.visit_expression(arg);
+                }
+            }
+            Expression::MethodCall { object, args, .. } => {
+                self.visit_expression(object);
+                for arg in args {
+                    self.visit_expression(arg);
+                }
+            }
+            Expression::TableConstructor { fields } => {
+                for field in fields {
+                    match field {
+                        TableField::List(e) => self.visit_expression(e),
+                        TableField::Named(_, e) => self.visit_expression(e),
+                        TableField::Indexed(k, v) => {
+                            self.visit_expression(k);
+                            self.visit_expression(v);
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
     }
 }

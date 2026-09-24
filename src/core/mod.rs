@@ -3,6 +3,7 @@
 //! 包含种子系统、配置管理和全局调度器。
 
 pub mod config;
+pub mod deep_obfuscator;
 pub mod orchestrator;
 pub mod seed;
 pub mod stats;
