@@ -134,7 +134,7 @@ mod tests {
 
     #[test]
     fn test_version() {
-        assert_eq!(VERSION, "8.1.0");
+        assert_eq!(VERSION, "8.2.0");
         assert_eq!(TOTAL_TECHNIQUES, 238);
     }
 

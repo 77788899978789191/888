@@ -19,6 +19,7 @@ use crate::quantum::QuantumObfuscator;
 use crate::advanced::AdvancedObfuscator;
 use crate::utils::safe_now_millis;
 use crate::vm::codegen::VMCodeGenerator;
+use crate::vm::engine::DualVmEngine;
 use std::fmt;
 use std::time::Instant;
 
@@ -229,12 +230,23 @@ impl Orchestrator {
         // 第二阶段：应用各混淆模块
         let mut output_parts: Vec<String> = Vec::new();
 
-        // VM保护阶段
-        let mut vm_gen = VMCodeGenerator::new(seed_u64);
-        let vm_program = vm_gen.compile_block(&block);
-        let vm_interpreter = vm_gen.generate_vm_interpreter_lua();
-        self.stats.vm_instructions = vm_program.instructions.len();
-        output_parts.push(vm_interpreter);
+        // 商业级深度混淆：先真实变换 AST（重命名 + 字符串加密池）
+        let mut deep = DeepObfuscator::new(seed_u64.wrapping_add(11));
+        let (vm_block, pool_runtime, deep_stats) = deep.transform_ast(&block);
+        self.stats.encrypted_strings = deep_stats.encrypted_strings;
+
+        // VM保护阶段：付费级双VM（VM-A解密 + VM-B执行，函数字节码化）
+        // 编译输入为已加密/重命名后的 AST —— 字符串、函数名均无明文暴露
+        let mut vm_engine = DualVmEngine::new(seed_u64);
+        let vm_program = vm_engine.compile_program(&vm_block);
+        self.stats.vm_instructions = vm_program
+            .functions
+            .iter()
+            .map(|f| f.code.len())
+            .sum::<usize>();
+        // 顺序：字符串池运行时在前（VM 执行时 GETF 调 _G._sp_get），双VM在后
+        output_parts.push(pool_runtime);
+        output_parts.push(vm_engine.generate_dual_vm_lua(&vm_program));
 
         // 控制流混淆
         let mut cf_obf = ControlFlowObfuscator::new(seed_u64.wrapping_add(1));
@@ -299,15 +311,9 @@ impl Orchestrator {
         output_parts.push(delivery.generate_watermark());
         output_parts.push(delivery.generate_quality_report());
 
-        // 商业级深度混淆：真实变换 AST（重命名+字符串加密池+状态机扁平化）
-        let mut deep = DeepObfuscator::new(seed_u64.wrapping_add(11));
-        let (deep_logic, pool_runtime, deep_stats) = deep.deep_obfuscate(&block);
-        self.stats.encrypted_strings = deep_stats.encrypted_strings;
-        output_parts.push(pool_runtime);
-
-        // 代码生成阶段：生成最终的混淆代码（逻辑主体为深度混淆后的代码）
+        // 代码生成阶段：生成最终的混淆代码（逻辑主体 = 双VM加密字节码）
         self.stats.calculate_strength_score();
-        let output = self.generate_final_output(code, &output_parts, &deep_logic)?;
+        let output = self.generate_final_output(code, &output_parts)?;
 
         // 计算最终统计
         self.stats.output_size = output.len();
@@ -329,7 +335,6 @@ impl Orchestrator {
         &mut self,
         original_code: &str,
         parts: &[String],
-        _ast_code: &str,
     ) -> Result<String, ObfuscatorError> {
         let mut output = String::new();
 
@@ -355,35 +360,10 @@ impl Orchestrator {
             output.push('\n');
         }
 
-        // VM执行入口
-        output.push_str("\n-- === VM Execution Entry ===\n");
-        output.push_str("local _gungnir_bytecode = {\n");
-        // 生成一些示例字节码
-        for i in 0..50 {
-            output.push_str(&format!("  {{opcode={}, operands={{{}}}}},\n", i * 7 % 32, i));
-        }
-        output.push_str("}\n\n");
 
-        // 主执行函数
-        output.push_str("local function _gungnir_execute()\n");
-        output.push_str("  -- 执行VM字节码\n");
-        output.push_str("  local _pc = 1\n");
-        output.push_str("  local _stack = {}\n");
-        output.push_str("  while _pc <= #_gungnir_bytecode do\n");
-        output.push_str("    local _instr = _gungnir_bytecode[_pc]\n");
-        output.push_str("    -- 简化执行：实际由VM解释器处理\n");
-        output.push_str("    _pc = _pc + 1\n");
-        output.push_str("  end\n");
-        output.push_str("end\n\n");
-
-        // 深度混淆后的逻辑主体（字符串加密池 + 状态机扁平化 + 垃圾代码交织）
-        output.push_str("-- === Obfuscated Logic (string pool + flattened state machines) ===\n");
-        output.push_str(_ast_code);
-        output.push('\n');
-
-        // 执行入口
+        // 执行入口：已由双VM产物（parts）自带 —— main 字节码经 VM-A 解密后由 VM-B 执行
         output.push_str("-- === Main Entry ===\n");
-        output.push_str("_gungnir_execute()\n");
+        output.push_str("-- 业务逻辑以加密字节码存储，由 Gungnir Dual-VM 解密并解释执行\n");
         output.push_str(&format!(
             "-- Execution time: {:.3}ms\n",
             (self.stats.duration.unwrap_or_default()).as_secs_f64() * 1000.0

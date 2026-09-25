@@ -6,6 +6,7 @@ pub mod seed_system;
 pub mod core;
 pub mod polymorphism;
 pub mod codegen;
+pub mod engine;
 pub mod advanced;
 
 pub use seed_system::RandomSeedSystem;

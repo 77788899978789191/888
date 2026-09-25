@@ -58,6 +58,8 @@ impl StringPoolCollector {
              \x20 return table.concat(r)\n\
              end\n",
         );
+        // VM 通过 GETF 调用 _sp_get —— 注册到全局
+        lua.push_str("_G._sp_get = _sp_get\n");
         lua
     }
 }
@@ -139,6 +141,30 @@ impl DeepObfuscator {
         Self {
             rng: ChaCha20Rng::seed_from_u64(seed),
         }
+    }
+
+    /// 变换 AST 供双VM编译（重命名 + 字符串加密池），返回变换后的 AST
+    ///
+    /// 返回 (变换后的 Block, 字符串池运行时, 统计)
+    pub fn transform_ast(&mut self, block: &Block) -> (Block, String, DeepStats) {
+        let mut work = block.clone();
+
+        // 1. SC-01: 标识符真实重命名（AST 级）
+        let mut scope = ScopeObfuscator::new(self.rng.gen::<u64>());
+        scope.rename_identifiers(&mut work);
+
+        // 2. DC-01: 字符串全量加密池（String → _sp_get(idx) 调用）
+        let mut collector = StringPoolCollector::new();
+        collector.visit_block(&mut work);
+        let pool_runtime = StringPoolCollector::generate_pool_runtime(&collector.pool);
+
+        let stats = DeepStats {
+            renamed_identifiers: 0,
+            encrypted_strings: collector.replaced,
+            flattened_functions: 0,
+        };
+
+        (work, pool_runtime, stats)
     }
 
     /// 深度混淆：真实变换 AST 并生成混淆逻辑主体
